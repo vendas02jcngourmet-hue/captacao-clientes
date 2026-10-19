@@ -1,0 +1,31 @@
+# Perfil de exemplo. Cada cliente da plataforma tem um arquivo como este.
+cliente_id: jcn-gourmet
+nome: JCN Gourmet
+limite_diario: 100          # contatos novos por dia para ligar
+
+prioridade: mais_recentes   # mais_recentes | mais_antigas | maior_capital | aleatorio
+arquivo_exclusao: jcn-gourmet-excluir.csv   # CNPJs que já são clientes (uma coluna)
+
+filtros:
+  cnaes:                    # atividade (código CNAE, pode ser só o começo)
+    - "5611201"             # restaurantes
+    - "5611203"             # lanchonetes e similares
+    - "5620104"             # comida preparada para consumo domiciliar
+    - "4721102"             # padarias e confeitarias com revenda
+  incluir_cnae_secundario: true
+  ufs: [SP]
+  municipios: []            # ex.: [CAMPINAS, SAO PAULO]
+  bairros: []
+  ceps_prefixo: []          # ex.: ["130"] para a região de Campinas
+  portes: [ME, EPP]         # ME | EPP | DEMAIS | NAO_INFORMADO
+  mei: false                # true = só MEI, false = sem MEI, vazio = tanto faz
+  abertura_desde:           # ex.: 2023-01-01
+  abertura_ate:
+  capital_minimo:
+  capital_maximo:
+  palavras_chave: []        # procura no nome, ex.: [PIZZA, BURGER]
+  palavras_excluir: []
+  so_matriz: false
+  exigir_telefone: true
+  exigir_celular: false     # true = só quem tem celular (provável WhatsApp)
+  exigir_email: false
