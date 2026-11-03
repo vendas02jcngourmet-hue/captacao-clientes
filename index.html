@@ -541,14 +541,21 @@ const funil = { mem: 0, bus: 0, ia: 0, novo: 0 };
 function renderFunil(p) { $("fnMem").textContent = funil.mem; $("fnBus").textContent = funil.bus; $("fnIa").textContent = funil.ia; $("fnNovo").textContent = funil.novo; if (p !== undefined) $("prog").style.width = p + "%"; }
 function montarConsultas(f) {
   const ano = new Date().getFullYear(), prod = (f.produtos.split(",")[0] || f.segmento).trim();
-  const base = [], extra = [];
+  const GUIAS = ["telelistas.net", "apontador.com.br", "guiamais.com.br", "solutudo.com.br", "econodata.com.br"];
+  const base = [], guias = [], extra = [];
+  let g = 0;
   for (const c of f.cidades) for (const a of f.alvos.slice(0, 5)) {
-    base.push({ q: `${a} ${c} ${f.uf} telefone`, cidade: c }); base.push({ q: `${a} em ${c} guia de empresas`, cidade: c });
-    extra.push({ q: `${a} ${c} whatsapp contato`, cidade: c }); extra.push({ q: `${a} ${c} endereço e telefone`, cidade: c });
+    base.push({ q: `${a} ${c} ${f.uf} telefone`, cidade: c, alvo: a });
+    guias.push({ q: `${a} ${c} site:${GUIAS[g++ % GUIAS.length]}`, cidade: c, alvo: a });
+    base.push({ q: `${a} em ${c} guia de empresas`, cidade: c, alvo: a });
+    guias.push({ q: `${a} ${c} site:${GUIAS[g++ % GUIAS.length]}`, cidade: c, alvo: a });
+    extra.push({ q: `${a} ${c} whatsapp contato`, cidade: c, alvo: a }); extra.push({ q: `${a} ${c} endereço e telefone`, cidade: c, alvo: a });
   }
-  const dem = f.cidades.slice(0, 2).flatMap((c) => [{ q: `"procuro fornecedor" ${prod} ${c}`, cidade: c, demanda: 1 }, { q: `inauguração ${f.alvos[0]} ${c} ${ano}`, cidade: c, demanda: 1 }]);
+  const dem = f.cidades.slice(0, 2).flatMap((c) => [{ q: `"procuro fornecedor" ${prod} ${c}`, cidade: c, demanda: 1, alvo: f.alvos[0] }, { q: `inauguração ${f.alvos[0]} ${c} ${ano}`, cidade: c, demanda: 1, alvo: f.alvos[0] }]);
+  // intercala buscas comuns e guias comerciais (os guias trazem mais empresas por página)
+  const mist = []; for (let i = 0; i < Math.max(base.length, guias.length); i++) { if (base[i]) mist.push(base[i]); if (guias[i]) mist.push(guias[i]); }
   const vistos = new Set(), out = [];
-  for (const x of [...base, ...extra, ...dem]) if (!vistos.has(x.q)) { vistos.add(x.q); out.push(x); }
+  for (const x of [...mist, ...extra, ...dem]) if (!vistos.has(x.q)) { vistos.add(x.q); out.push(x); }
   return out;
 }
 function receber(novos) {
@@ -574,20 +581,20 @@ async function captar() {
     if (b.codigo === "limite") limite = true;
   } catch (e) { log("Memória indisponível: " + e.message, "w"); if (e.codigo === "limite") limite = true; }
 
-  const consultas = limite ? [] : montarConsultas(f).slice(0, st.prof === "rapida" ? 6 : 18);
-  const abrir = st.prof === "rapida" ? 4 : 5;
+  const consultas = limite ? [] : montarConsultas(f).slice(0, st.prof === "rapida" ? 8 : 24);
+  const abrir = st.prof === "rapida" ? 5 : 6;
   let idx = 0, feitas = 0, falhas = 0, avisou = false;
   const trab = async (w) => {
     while (idx < consultas.length && !st.parar && !limite) {
       const c = consultas[idx++], i = idx;
       log("🔎 " + c.q);
       try {
-        const r = await fn("captar", { acao: "buscar", q: c.q, cidade: c.cidade, demanda: !!c.demanda, abrir, motores: i % 2 ? ["brave", "bing", "ddg"] : ["bing", "brave", "ddg"], filtros: f });
+        const r = await fn("captar", { acao: "buscar", q: c.q, cidade: c.cidade, demanda: !!c.demanda, alvo: c.alvo, abrir, motores: i % 2 ? ["brave", "bing", "ddg"] : ["bing", "brave", "ddg"], filtros: f });
         funil.bus++; feitas++;
         const s = r.stats || {};
         funil.ia += s.ia || 0;
         const n = receber(r.novos);
-        log(`  ${s.encontradas || 0} empresas com telefone · ${s.memoria || 0} já conhecidas · ${s.ia || 0} conferidas pela IA · ${n} novas para você${s.cache ? " · busca reaproveitada" : ""}`, n ? "g" : "");
+        log(`  ${s.encontradas || 0} empresas com telefone · ${s.memoria || 0} já conhecidas · ${s.ia || 0} conferidas pela IA ·${s.regra ? ` ${s.regra} separadas por regras ·` : ""} ${n} novas para você${s.cache ? " · busca reaproveitada" : ""}`, n ? "g" : "");
         if (r.aviso && !avisou) { avisou = true; log(r.aviso, "w"); }
         if (r.codigo === "limite") { limite = true; }
         falhas = 0;
@@ -600,7 +607,7 @@ async function captar() {
       renderFunil(Math.min(99, 5 + Math.round((feitas / consultas.length) * 95)));
     }
   };
-  await Promise.all([trab(1), trab(2)]);
+  await Promise.all([trab(1), trab(2), trab(3)]);
   if (limite) log("Você atingiu o limite de leads deste mês. Fale com quem te vendeu o acesso para aumentar.", "e");
   log(`Fim: ${funil.novo} leads novos (${funil.mem} da memória, ${funil.novo - funil.mem} da web).`, "g");
   setStatus(funil.novo ? "ok" : "info", funil.novo ? `Pronto: ${funil.novo} leads novos na sua carteira.` : limite ? "Limite do mês atingido." : "Captação terminada sem leads novos. Tente outra cidade ou outros tipos de cliente.");
@@ -767,7 +774,6 @@ fillSelect($("fSeg"), Object.keys(SEGMENTOS).map((s) => [s, s]));
 fillSelect($("fUf"), Object.entries(UFS).map(([k, [n]]) => [k, `${k} · ${n}`]));
 fillSelect($("tSt"), STATUS.map((s) => [s, s]), "Todos status");
 sb.auth.getSession().then(({ data }) => (data.session ? abrirApp() : iniciarLogin()));
-
 </script>
 </body>
 </html>
