@@ -307,7 +307,7 @@ details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-s
         <select id="tSt" aria-label="Filtrar por status"></select>
         <select id="tNota" aria-label="Nota mínima"><option value="0">Qualquer nota</option><option value="50">Nota 50+</option><option value="70">Nota 70+</option><option value="-1">Ainda não avaliados</option><option value="-2">Avaliados: A e B</option></select>
         <span class="grow"></span>
-        <button class="btn small primary" id="bAval" type="button" title="Procura cada lead no Instagram, Facebook, Google, site e CNPJ e dá uma nota">Avaliar leads</button>
+        <button class="btn small primary" id="bAval" type="button" title="Análise profunda: procura cada lead em buscadores, Instagram, Facebook, LinkedIn, Google, site próprio, guias, Casa dos Dados e Receita Federal (até 1 minuto por lead)">Avaliar leads</button>
         <button class="btn small" id="bAdd" type="button">Adicionar lead</button>
         <button class="btn small" id="bCsv" type="button">Baixar Excel (CSV)</button>
       </div>
@@ -700,17 +700,17 @@ let analisando = false;
 $("bAval").onclick = async () => {
   const b = $("bAval");
   if (analisando) { st.pararAval = true; b.textContent = "Parando…"; return; }
-  const fila = lista().filter((l) => l.nota == null && (digits(l.whatsapp) || digits(l.telefone)).length >= 10).slice(0, 30);
+  const fila = lista().filter((l) => l.nota == null && (digits(l.whatsapp) || digits(l.telefone)).length >= 10).slice(0, 20);
   if (!fila.length) { toast("Todos os leads desta lista já foram avaliados"); return; }
   analisando = true; st.pararAval = false;
   let feitos = 0;
   for (const l of fila) {
     if (st.pararAval) break;
-    b.textContent = `Avaliando ${feitos + 1} de ${fila.length}… (parar)`;
+    b.textContent = `Análise profunda ${feitos + 1} de ${fila.length}… (parar)`;
     await avaliarUm(l.id); feitos++; renderLeads();
   }
   analisando = false; b.textContent = "Avaliar leads";
-  toast(`${feitos} ${feitos === 1 ? "lead avaliado" : "leads avaliados"}${fila.length === 30 ? ". Clique de novo para avaliar mais" : ""}`);
+  toast(`${feitos} ${feitos === 1 ? "lead avaliado" : "leads avaliados"}${fila.length === 20 ? ". Clique de novo para avaliar mais" : ""}`);
 };
 let anAtual = null;
 function abrirAnalise(id) {
@@ -720,12 +720,13 @@ function abrirAnalise(id) {
   $("anSub").textContent = [l.categoria, l.cidade, l.whatsapp || l.telefone].filter(Boolean).join(" · ");
   $("anNota").innerHTML = `<span class="cls ${c}"><b>${c}</b></span> ${l.nota}<small>${ROT[c]}</small>`;
   $("anLista").innerHTML = (a.pontos || []).map((p) => `<li class="${p.alerta ? "alerta" : p.info ? "info" : p.ok ? "ok" : "no"}"><span class="ic">${p.alerta || p.info ? "!" : p.ok ? "✓" : "✗"}</span><span>${esc(p.texto)}${p.link ? `<br><a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : ""}</span></li>`).join("");
-  $("anData").textContent = l.analisado_em ? "Analisado em " + new Date(l.analisado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + ". A nota cruza telefone, nome e cidade em várias fontes da internet." : "";
+  const est = [a.pesquisas ? `${a.pesquisas} pesquisas` : "", a.resultados ? `${a.resultados} resultados conferidos` : "", a.paginas ? `${a.paginas} páginas lidas` : "", a.segundos ? `${a.segundos}s` : ""].filter(Boolean).join(" · ");
+  $("anData").textContent = l.analisado_em ? "Analisado em " + new Date(l.analisado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + (est ? ` (${est})` : "") + ". A nota cruza telefone, nome e cidade em buscadores, redes sociais, guias, Casa dos Dados e Receita Federal." : "";
   $("dlgAn").showModal();
 }
 $("anFechar").onclick = () => $("dlgAn").close();
 $("anRefazer").onclick = async () => {
-  const b = $("anRefazer"); b.disabled = true; b.textContent = "Analisando…";
+  const b = $("anRefazer"); b.disabled = true; b.textContent = "Análise profunda… (até 1 min)";
   const l = await avaliarUm(anAtual, true);
   b.disabled = false; b.textContent = "Analisar de novo";
   renderLeads(); if (l) abrirAnalise(l.id);
@@ -745,7 +746,7 @@ $("tbody").addEventListener("click", async (e) => {
   const w = e.target.closest("[data-wa]");
   if (w) { const l = st.leads.find((x) => x.id == w.dataset.wa); if (l && (!l.status || l.status === "Novo")) { await mudar(l.id, { status: "Contatado", envios: (l.envios || 0) + 1, ultimo_envio: new Date().toISOString() }); setTimeout(renderLeads, 300); } return; }
   const an = e.target.closest("[data-an]"); if (an) { abrirAnalise(an.dataset.an); return; }
-  const av = e.target.closest("[data-av]"); if (av) { av.disabled = true; av.textContent = "Avaliando…"; await avaliarUm(av.dataset.av); renderLeads(); return; }
+  const av = e.target.closest("[data-av]"); if (av) { av.disabled = true; av.textContent = "Analisando… (até 1 min)"; await avaliarUm(av.dataset.av); renderLeads(); return; }
   const d = e.target.closest("[data-del]"); if (!d) return;
   const box = d.parentElement, id = d.dataset.del;
   box.innerHTML = `<span class="confirm">Remover? <button class="btn small" type="button" data-sim>Sim</button><button class="btn small" type="button" data-nao>Não</button></span>`;
