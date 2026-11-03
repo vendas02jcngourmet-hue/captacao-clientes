@@ -512,7 +512,12 @@ $("bAddAlvo").onclick = addAlvo; $("fAlvoIn").onkeydown = (e) => { if (e.key ===
 $("bSugerir").onclick = async () => {
   const b = $("bSugerir"); b.disabled = true; b.textContent = "Pensando…";
   try { const r = await fn("captar", { acao: "sugerir", filtros: filtros() }); (r.clientes || []).forEach((c) => st.alvos.add(c)); renderAlvos(); salvarPrefs(); toast("Sugestões adicionadas"); }
-  catch (e) { toast(e.message); }
+  catch (e) {
+    if (e.codigo === "sem_chave" || /ANTHROPIC|chave da IA/i.test(e.message)) {
+      (SEGMENTOS[$("fSeg").value] || []).forEach((c) => st.alvos.add(c)); renderAlvos(); salvarPrefs();
+      toast("IA ainda não ligada: adicionei os clientes mais comuns desse tipo de loja");
+    } else toast(e.message);
+  }
   b.disabled = false; b.textContent = "Sugerir clientes com IA";
 };
 
