@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Radar de Clientes</title>
+<meta name="description" content="Robô de captação de clientes por estado, DDD e cidade.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%230B7A5A'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23D9F0E7' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+/* Layout: painel de filtros fixo à esquerda (bloco no celular); à direita abas Captação / Disparos */
+:root{
+  --bg:#F3F5F4; --surface:#FFFFFF; --sunk:#E8ECEA; --line:#D3DAD7;
+  --ink:#0F2A2E; --muted:#5A6E70; --accent:#0B7A5A; --accent-ink:#FFFFFF; --accent-soft:#D9F0E7;
+  --warn:#A15C00; --warn-soft:#FBEBD3; --bad:#B42318; --bad-soft:#FBE3E0; --info:#1D4E89; --info-soft:#DDE8F6;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C1617; --surface:#132224; --sunk:#0F1C1E; --line:#24393B;
+  --ink:#E4EEEC; --muted:#93A9A8; --accent:#3DD39C; --accent-ink:#06251B; --accent-soft:#123A2E;
+  --warn:#F2B35B; --warn-soft:#3A2A12; --bad:#FF8A7A; --bad-soft:#3D1A16; --info:#8DB8F2; --info-soft:#16283F; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0C1617; --surface:#132224; --sunk:#0F1C1E; --line:#24393B;
+  --ink:#E4EEEC; --muted:#93A9A8; --accent:#3DD39C; --accent-ink:#06251B; --accent-soft:#123A2E;
+  --warn:#F2B35B; --warn-soft:#3A2A12; --bad:#FF8A7A; --bad-soft:#3D1A16; --info:#8DB8F2; --info-soft:#16283F; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:clamp(26px,3.4vw,38px);font-weight:800;line-height:1.05}
+h2{font-size:19px;font-weight:600}
+h3{font-size:15px;font-weight:600}
+.eyebrow{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.brand{display:flex;gap:14px;align-items:center}
+.radar{width:52px;height:52px;flex:none;border-radius:50%;border:1.5px solid var(--accent);position:relative;overflow:hidden;background:
+  radial-gradient(circle, transparent 30%, var(--accent-soft) 31%, transparent 33%, transparent 62%, var(--accent-soft) 63%, transparent 65%)}
+.radar::after{content:"";position:absolute;inset:0;background:conic-gradient(from 0deg, transparent 0 300deg, color-mix(in srgb, var(--accent) 55%, transparent) 360deg);animation:sweep 3.2s linear infinite;border-radius:50%}
+.radar.busy::after{animation-duration:1s}
+@keyframes sweep{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.radar::after{animation:none}}
+.sub{color:var(--muted);max-width:62ch;margin-top:4px}
+.kpis{display:flex;gap:22px;flex-wrap:wrap}
+.kpi b{display:block;font-family:var(--display);font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.kpi span{font-size:12px;color:var(--muted)}
+
+.grid{display:grid;grid-template-columns:340px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+aside.panel{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:900px){aside.panel{position:static}}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label,.lbl{font-size:12px;font-weight:600;color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:9px 10px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:64px}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+input[type=checkbox]{width:auto;accent-color:var(--accent)}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.check input{margin-top:3px}
+.hint{font-size:12px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;padding:4px 10px;cursor:pointer;font-family:inherit}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+button.btn{font:inherit;font-weight:600;border-radius:8px;padding:10px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:8px;justify-content:center;text-decoration:none}
+a.btn{font-weight:600;border-radius:8px;padding:10px 14px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+button.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+button.btn.small{padding:6px 10px;font-size:12.5px;font-weight:500}
+button.btn:disabled{opacity:.5;cursor:not-allowed}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;border:0;background:var(--sunk);color:var(--muted);padding:8px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabs button{font:inherit;font-family:var(--display);font-size:16px;font-weight:600;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:8px 14px;cursor:pointer;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs .count{font-family:var(--mono);font-size:11px;background:var(--sunk);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
+
+.main{display:flex;flex-direction:column;gap:20px;min-width:0}
+.status{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;font-size:13px}
+.status.ok{background:var(--accent-soft)}.status.warn{background:var(--warn-soft)}.status.info{background:var(--info-soft)}
+.dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none;background:var(--muted)}
+.ok .dot{background:var(--accent)}.warn .dot{background:var(--warn)}.info .dot{background:var(--info)}
+
+.console{font-family:var(--mono);font-size:12.5px;background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:3px}
+.console .t{color:var(--muted);margin-right:8px;font-variant-numeric:tabular-nums}
+.console .e{color:var(--bad)}.console .g{color:var(--accent)}.console .w{color:var(--warn)}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.step{font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.step.run{border-color:var(--info);color:var(--info)}.step.done{border-color:var(--accent);color:var(--accent)}.step.fail{border-color:var(--bad);color:var(--bad)}
+.funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:560px){.funnel{grid-template-columns:repeat(2,1fr)}}
+.funnel div{background:var(--sunk);border-radius:8px;padding:8px 10px}
+.funnel b{display:block;font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums}
+.funnel span{font-size:11.5px;color:var(--muted)}
+
+.links{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.links a{display:flex;flex-direction:column;gap:2px;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--sunk)}
+.links a:hover{border-color:var(--accent)}
+.links a small{color:var(--muted);font-size:11.5px}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toolbar input{max-width:220px}
+.toolbar select{width:auto}
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:940px;font-size:13px}
+th{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;font-weight:500;padding:9px 10px;background:var(--sunk);border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.example td{color:var(--muted)}
+.name{font-weight:600}
+.cat{font-size:12px;color:var(--muted)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px}
+.contact{display:flex;flex-direction:column;gap:3px}
+.contact a,.contact span{word-break:break-all}
+.badge{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:1px 7px;border-radius:999px;border:1px solid currentColor;vertical-align:1px;margin-left:4px;white-space:nowrap}
+.badge.ok{color:var(--accent)}.badge.warn{color:var(--warn)}.badge.ex{color:var(--info)}.badge.bad{color:var(--bad)}
+.score{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.bar{width:46px;height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar.mid i{background:var(--warn)}.bar.low i{background:var(--bad)}
+.why{font-size:12px;color:var(--muted);max-width:30ch}
+.st{width:auto;padding:5px 8px;font-size:12.5px}
+.rowact{display:flex;gap:4px;flex-wrap:wrap}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+
+/* Disparos */
+.dgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px;align-items:start}
+@media (max-width:1100px){.dgrid{grid-template-columns:minmax(0,1fr)}}
+.vars{display:flex;gap:6px;flex-wrap:wrap}
+.vars button{font-family:var(--mono);font-size:11.5px;border:1px dashed var(--line);background:none;color:var(--muted);border-radius:6px;padding:2px 7px;cursor:pointer}
+.sendcard{border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--sunk)}
+.sendcard .who{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.bubble{background:var(--surface);border:1px solid var(--line);border-radius:10px 10px 10px 2px;padding:10px 12px}
+.meter{height:8px;background:var(--sunk);border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.meter i{display:block;height:100%;background:var(--accent)}
+.qlist{display:flex;flex-direction:column;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.qlist div{display:flex;justify-content:space-between;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-size:13px}
+.qlist div:last-child{border-bottom:0}
+.qlist .cur{background:var(--accent-soft)}
+.wait{font-family:var(--mono);font-size:13px;color:var(--warn)}
+
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);max-width:min(560px, calc(100vw - 32px));width:100%;padding:20px}
+dialog::backdrop{background:rgba(5,15,15,.45)}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.formgrid .full{grid-column:1/-1}
+@media (max-width:520px){.formgrid,.row2,.row3{grid-template-columns:1fr}}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:13px;z-index:20}
+.foot{font-size:12px;color:var(--muted);max-width:90ch}
+.confirm{display:inline-flex;gap:4px;align-items:center;font-size:12px}
+
+[hidden]{display:none!important}
+.stack{display:flex;flex-direction:column;gap:14px}
+.headrow{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline}
+.inline{display:flex;gap:6px}
+.grow{flex:1}
+.erro{color:var(--bad);background:var(--bad-soft);border-radius:8px;padding:8px 10px;font-size:13px;margin:0}
+.login{min-height:calc(100vh - 80px);display:grid;place-items:center;padding-block:24px}
+.loginbox{width:min(420px,100%);gap:18px}
+.loginbox .brand{gap:12px}
+.loginbox h1{font-size:28px}
+details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-size:16px}
+.tabs{margin-bottom:-6px}
+#viewCart,#viewAdm{display:flex;flex-direction:column;gap:20px}
+</style>
+</head>
+<body>
+<!-- ================= LOGIN ================= -->
+<div id="telaLogin" class="login" hidden>
+  <div class="loginbox panel">
+    <div class="brand"><div class="radar" aria-hidden="true"></div><div><div class="eyebrow">Robô de captação</div><h1>Radar de Clientes</h1></div></div>
+    <form id="fLogin" class="stack" novalidate>
+      <h2>Entrar</h2>
+      <div class="field"><label for="lEmail">E-mail</label><input id="lEmail" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="lSenha">Senha</label><input id="lSenha" type="password" autocomplete="current-password" required></div>
+      <button class="btn primary" type="submit" id="bEntrar">Entrar</button>
+      <p class="hint" style="margin:0">Esqueceu a senha? Fale com quem te vendeu o acesso; ele cria uma nova para você.</p>
+      <p class="erro" id="lErro" hidden></p>
+    </form>
+    <form id="fAdmin" class="stack" novalidate hidden>
+      <h2>Criar a conta do administrador</h2>
+      <p class="hint" style="margin:0">Primeiro acesso ao sistema. Esta conta controla os clientes, os limites e os acessos. Só pode ser criada uma vez.</p>
+      <div class="field"><label for="aNomeAdm">Seu nome</label><input id="aNomeAdm" autocomplete="name"></div>
+      <div class="field"><label for="aEmailAdm">E-mail</label><input id="aEmailAdm" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="aSenhaAdm">Senha (mínimo 8 caracteres)</label><input id="aSenhaAdm" type="password" autocomplete="new-password" minlength="8" required></div>
+      <button class="btn primary" type="submit" id="bCriarAdm">Criar e entrar</button>
+      <p class="erro" id="aErro" hidden></p>
+    </form>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div class="wrap" id="telaApp" hidden>
+  <header class="top">
+    <div class="brand">
+      <div class="radar" id="radar" aria-hidden="true"></div>
+      <div>
+        <div class="eyebrow" id="ola">Robô de captação</div>
+        <h1>Radar de Clientes</h1>
+        <p class="sub">Encontra empresas que compram seus produtos, por estado, DDD e cidade. Empresas que o Radar já conhece chegam na hora; as novas são pesquisadas na internet e conferidas pela IA.</p>
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><b id="kSaldo">–</b><span>leads disponíveis no mês</span></div>
+      <div class="kpi"><b id="kTotal">0</b><span>na carteira</span></div>
+      <div class="kpi"><b id="kWa">0</b><span>com WhatsApp</span></div>
+      <div class="kpi"><button class="btn small" id="bSair" type="button">Sair</button></div>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tabCap" aria-selected="true" type="button">Captação</button>
+    <button role="tab" id="tabCart" aria-selected="false" type="button">Carteira<span class="count" id="cCart">0</span></button>
+    <button role="tab" id="tabAdm" aria-selected="false" type="button" hidden>Administração</button>
+  </div>
+
+  <!-- ===== CAPTAÇÃO ===== -->
+  <div class="grid" id="viewCap">
+    <aside class="panel" aria-label="Filtros de captação">
+      <div><div class="eyebrow">Passo 1</div><h2>Sua loja</h2></div>
+      <div class="field"><label for="fLoja">Nome da sua loja</label><input id="fLoja" placeholder="Usado nas mensagens"></div>
+      <div class="field"><label for="fSeg">Tipo de loja</label><select id="fSeg"></select></div>
+      <div class="field"><label for="fProd">Produtos que você vende</label><textarea id="fProd" rows="2">cimento, argamassa, tijolos, ferragens, tintas</textarea></div>
+      <div class="field">
+        <label for="fAlvoIn">Quem compra de você</label>
+        <div class="chips" id="alvoChips"></div>
+        <div class="inline"><input id="fAlvoIn" placeholder="Adicionar e apertar Enter"><button class="btn small" id="bAddAlvo" type="button">+</button></div>
+        <button class="btn small" id="bSugerir" type="button">Sugerir clientes com IA</button>
+      </div>
+      <div class="field"><label for="fExc">Não trazer (concorrentes, ramos fora)</label><input id="fExc" placeholder="Ex.: depósito de material, home center"></div>
+
+      <div><div class="eyebrow">Passo 2</div><h2>Onde buscar</h2></div>
+      <div class="row2">
+        <div class="field"><label for="fUf">Estado</label><select id="fUf"></select></div>
+        <div class="field"><label for="fDdd">DDD</label><select id="fDdd"></select></div>
+      </div>
+      <div class="field">
+        <label for="fCid">Cidade</label>
+        <input id="fCid" list="cidList" placeholder="Em branco: as maiores do DDD">
+        <datalist id="cidList"></datalist>
+        <span class="hint" id="cidHint"></span>
+      </div>
+      <label class="check"><input type="checkbox" id="fSoDdd" checked> <span>Só trazer telefones do DDD escolhido</span></label>
+
+      <div><div class="eyebrow">Passo 3</div><h2>Captar</h2></div>
+      <div class="seg" role="group" aria-label="Profundidade">
+        <button type="button" id="pRapida" aria-pressed="false">Rápida · ~3 min</button>
+        <button type="button" id="pCompleta" aria-pressed="true">Completa · ~10 min</button>
+      </div>
+      <button class="btn primary" id="bRun" type="button">Iniciar captação</button>
+      <button class="btn" id="bStop" type="button" hidden>Parar</button>
+    </aside>
+
+    <section class="main">
+      <div class="panel">
+        <div class="headrow"><h2>Robô</h2><span class="hint" id="memInfo"></span></div>
+        <div class="status info" id="status"><span class="dot"></span><span>Pronto. Ajuste os filtros e clique em Iniciar captação.</span></div>
+        <div class="meter"><i id="prog" style="width:0%"></i></div>
+        <div class="funnel">
+          <div><b id="fnMem">0</b><span>da memória do Radar</span></div>
+          <div><b id="fnBus">0</b><span>buscas na web</span></div>
+          <div><b id="fnIa">0</b><span>conferidas pela IA</span></div>
+          <div><b id="fnNovo">0</b><span>leads novos</span></div>
+        </div>
+        <div class="console" id="console"><div><span class="t">--:--</span>Aguardando.</div></div>
+      </div>
+      <div class="panel">
+        <div class="headrow"><h2>Últimos leads</h2><button class="btn small" id="bVerCart" type="button">Abrir carteira</button></div>
+        <div class="tablebox"><table><thead><tr><th>Nota</th><th>Empresa</th><th>Contato</th><th>Local</th><th>Por que compra</th></tr></thead><tbody id="tUlt"></tbody></table></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== CARTEIRA ===== -->
+  <section class="main" id="viewCart" hidden>
+    <div class="panel">
+      <div class="headrow"><h2>Carteira de leads</h2><span class="hint">Só você vê os seus leads.</span></div>
+      <div class="toolbar">
+        <input id="tBusca" placeholder="Buscar nome, cidade, telefone">
+        <select id="tDdd" aria-label="Filtrar por DDD"><option value="">Todos DDD</option></select>
+        <select id="tSt" aria-label="Filtrar por status"></select>
+        <select id="tNota" aria-label="Nota mínima"><option value="0">Qualquer nota</option><option value="50">Nota 50+</option><option value="70">Nota 70+</option></select>
+        <span class="grow"></span>
+        <button class="btn small" id="bAdd" type="button">Adicionar lead</button>
+        <button class="btn small" id="bCsv" type="button">Baixar Excel (CSV)</button>
+      </div>
+      <div class="tablebox"><table>
+        <thead><tr><th>Nota</th><th>Empresa</th><th>Contato</th><th>Local</th><th>Por que compra</th><th>Status</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <details>
+        <summary>Mensagem do WhatsApp</summary>
+        <div class="field" style="margin-top:10px">
+          <label for="mMsg">Texto que abre no WhatsApp ao clicar no botão WhatsApp</label>
+          <textarea id="mMsg" rows="5"></textarea>
+          <span class="hint">Use {empresa}, {cidade}, {produtos} e {loja}. O WhatsApp abre com o texto pronto; você confere e envia.</span>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===== ADMINISTRAÇÃO ===== -->
+  <section class="main" id="viewAdm" hidden>
+    <div class="status warn" id="admIa" hidden><span class="dot"></span><span>A IA ainda não está configurada no servidor. Sem ela, os clientes só recebem empresas da memória do Radar. Cadastre a chave seguindo o LEIA-ME.</span></div>
+    <div class="funnel">
+      <div><b id="aMemEmp">0</b><span>empresas na memória</span></div>
+      <div><b id="aMemJul">0</b><span>julgamentos guardados</span></div>
+      <div><b id="aContas">0</b><span>clientes ativos</span></div>
+      <div><b id="aLeadsMes">0</b><span>leads entregues no mês</span></div>
+    </div>
+    <div class="dgrid">
+      <div class="panel">
+        <h2>Novo cliente</h2>
+        <form id="fNovo" class="stack" novalidate>
+          <div class="row2">
+            <div class="field"><label for="nNome">Nome</label><input id="nNome"></div>
+            <div class="field"><label for="nEmp">Empresa</label><input id="nEmp"></div>
+          </div>
+          <div class="field"><label for="nEmail">E-mail de acesso</label><input id="nEmail" type="email" required></div>
+          <div class="field"><label for="nSenha">Senha inicial</label><div class="inline"><input id="nSenha" class="mono" required minlength="8"><button class="btn small" type="button" id="bGerar">Gerar</button></div></div>
+          <div class="row2">
+            <div class="field"><label for="nLim">Leads por mês</label><input id="nLim" type="number" min="0" value="300"></div>
+            <div class="field"><label for="nVal">Acesso até</label><input id="nVal" type="date"></div>
+          </div>
+          <button class="btn primary" type="submit">Criar acesso</button>
+          <div class="sendcard" id="nOk" hidden></div>
+          <p class="erro" id="nErro" hidden></p>
+        </form>
+      </div>
+      <div class="panel">
+        <div class="headrow"><h2>Clientes</h2><button class="btn small" id="bAdmSync" type="button">Atualizar</button></div>
+        <div class="tablebox"><table style="min-width:720px"><thead><tr><th>Cliente</th><th>Uso no mês</th><th>Limite</th><th>Acesso até</th><th>Situação</th><th></th></tr></thead><tbody id="aBody"><tr><td colspan="6" class="empty">Carregando…</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </section>
+  <p class="foot">Dados públicos de empresas. Ao abordar, apresente-se e respeite quem pedir para não receber mensagens (LGPD).</p>
+</div>
+
+<dialog id="dlg">
+  <form id="addForm" method="dialog" class="stack">
+    <h2>Adicionar lead</h2>
+    <div class="formgrid">
+      <div class="field full"><label for="dNome">Empresa *</label><input id="dNome" required></div>
+      <div class="field"><label for="dCat">Ramo</label><input id="dCat"></div>
+      <div class="field"><label for="dTel">Telefone / WhatsApp</label><input id="dTel" inputmode="tel"></div>
+      <div class="field"><label for="dEmail">E-mail</label><input id="dEmail" type="email"></div>
+      <div class="field"><label for="dCid">Cidade</label><input id="dCid"></div>
+      <div class="field full"><label for="dMot">Observação</label><input id="dMot"></div>
+    </div>
+    <div class="btnrow" style="justify-content:flex-end"><button class="btn" type="button" id="dCancel">Cancelar</button><button class="btn primary" type="submit">Salvar lead</button></div>
+  </form>
+</dialog>
+<dialog id="dlgEd">
+  <form id="edForm" method="dialog" class="stack">
+    <h2 id="edTit">Editar cliente</h2>
+    <div class="row2">
+      <div class="field"><label for="eLim">Leads por mês</label><input id="eLim" type="number" min="0"></div>
+      <div class="field"><label for="eVal">Acesso até</label><input id="eVal" type="date"></div>
+    </div>
+    <div class="field"><label for="eSenha">Nova senha (deixe em branco para manter)</label><div class="inline"><input id="eSenha" class="mono" minlength="8"><button class="btn small" type="button" id="bGerar2">Gerar</button></div></div>
+    <p class="erro" id="eErro" hidden></p>
+    <div class="btnrow" style="justify-content:flex-end"><button class="btn" type="button" id="eCancel">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>const {UFS, CIDADES, SEGMENTOS} = {"UFS": {"AC": ["Acre", [68]], "AL": ["Alagoas", [82]], "AP": ["Amapá", [96]], "AM": ["Amazonas", [92, 97]], "BA": ["Bahia", [71, 73, 74, 75, 77]], "CE": ["Ceará", [85, 88]], "DF": ["Distrito Federal", [61]], "ES": ["Espírito Santo", [27, 28]], "GO": ["Goiás", [62, 64]], "MA": ["Maranhão", [98, 99]], "MT": ["Mato Grosso", [65, 66]], "MS": ["Mato Grosso do Sul", [67]], "MG": ["Minas Gerais", [31, 32, 33, 34, 35, 37, 38]], "PA": ["Pará", [91, 93, 94]], "PB": ["Paraíba", [83]], "PR": ["Paraná", [41, 42, 43, 44, 45, 46]], "PE": ["Pernambuco", [81, 87]], "PI": ["Piauí", [86, 89]], "RJ": ["Rio de Janeiro", [21, 22, 24]], "RN": ["Rio Grande do Norte", [84]], "RS": ["Rio Grande do Sul", [51, 53, 54, 55]], "RO": ["Rondônia", [69]], "RR": ["Roraima", [95]], "SC": ["Santa Catarina", [47, 48, 49]], "SP": ["São Paulo", [11, 12, 13, 14, 15, 16, 17, 18, 19]], "SE": ["Sergipe", [79]], "TO": ["Tocantins", [63]]}, "CIDADES": {"11": "São Paulo|Guarulhos|Osasco|Santo André|São Bernardo do Campo|Mogi das Cruzes|Jundiaí|Barueri", "12": "São José dos Campos|Taubaté|Jacareí|Caraguatatuba", "13": "Santos|São Vicente|Praia Grande|Guarujá|Registro", "14": "Bauru|Marília|Botucatu|Jaú", "15": "Sorocaba|Itapetininga|Itu", "16": "Ribeirão Preto|Franca|São Carlos|Araraquara", "17": "São José do Rio Preto|Catanduva|Barretos", "18": "Presidente Prudente|Araçatuba|Assis", "19": "Campinas|Piracicaba|Limeira|Americana", "21": "Rio de Janeiro|Niterói|Duque de Caxias|Nova Iguaçu|São Gonçalo", "22": "Campos dos Goytacazes|Macaé|Cabo Frio|Nova Friburgo", "24": "Volta Redonda|Petrópolis|Barra Mansa|Resende", "27": "Vitória|Vila Velha|Serra|Cariacica|Linhares", "28": "Cachoeiro de Itapemirim", "31": "Belo Horizonte|Contagem|Betim|Ipatinga", "32": "Juiz de Fora|Barbacena", "33": "Governador Valadares|Teófilo Otoni", "34": "Uberlândia|Uberaba|Patos de Minas", "35": "Poços de Caldas|Pouso Alegre|Varginha", "37": "Divinópolis|Itaúna", "38": "Montes Claros", "41": "Curitiba|São José dos Pinhais|Paranaguá", "42": "Ponta Grossa|Guarapuava", "43": "Londrina|Apucarana", "44": "Maringá|Umuarama", "45": "Cascavel|Foz do Iguaçu|Toledo", "46": "Francisco Beltrão|Pato Branco", "47": "Joinville|Blumenau|Itajaí|Balneário Camboriú", "48": "Florianópolis|São José|Criciúma", "49": "Chapecó|Lages", "51": "Porto Alegre|Canoas|Novo Hamburgo|Gravataí", "53": "Pelotas|Rio Grande", "54": "Caxias do Sul|Passo Fundo|Bento Gonçalves", "55": "Santa Maria|Santo Ângelo|Uruguaiana", "61": "Brasília", "62": "Goiânia|Aparecida de Goiânia|Anápolis", "63": "Palmas|Araguaína", "64": "Rio Verde|Itumbiara|Catalão", "65": "Cuiabá|Várzea Grande", "66": "Rondonópolis|Sinop", "67": "Campo Grande|Dourados|Três Lagoas", "68": "Rio Branco", "69": "Porto Velho|Ji-Paraná", "71": "Salvador|Camaçari|Lauro de Freitas", "73": "Ilhéus|Itabuna|Porto Seguro", "74": "Juazeiro", "75": "Feira de Santana", "77": "Vitória da Conquista|Barreiras", "79": "Aracaju", "81": "Recife|Jaboatão dos Guararapes|Olinda|Caruaru", "82": "Maceió|Arapiraca", "83": "João Pessoa|Campina Grande", "84": "Natal|Mossoró", "85": "Fortaleza|Caucaia", "86": "Teresina|Parnaíba", "87": "Petrolina|Garanhuns", "88": "Juazeiro do Norte|Sobral", "89": "Picos|Floriano", "91": "Belém|Ananindeua", "92": "Manaus", "93": "Santarém", "94": "Marabá", "95": "Boa Vista", "96": "Macapá", "97": "Coari|Tefé", "98": "São Luís", "99": "Imperatriz|Caxias"}, "SEGMENTOS": {"Material de construção": ["Construtoras", "Empreiteiros e pedreiros", "Arquitetos", "Condomínios"], "Moda e vestuário": ["Lojas de roupas", "Boutiques", "Uniformes para empresas", "Revendedoras"], "Alimentos e bebidas (atacado)": ["Restaurantes", "Lanchonetes", "Mercados de bairro", "Padarias"], "Autopeças": ["Oficinas mecânicas", "Frotas e transportadoras", "Funilarias", "Auto elétricas"], "Informática e eletrônicos": ["Escritórios de contabilidade", "Escolas", "Clínicas", "Assistências técnicas"], "Móveis e decoração": ["Arquitetos e designers", "Imobiliárias", "Hotéis e pousadas", "Escritórios"], "Cosméticos e beleza": ["Salões de beleza", "Barbearias", "Clínicas de estética", "Manicures"], "Produtos de limpeza": ["Condomínios", "Empresas de limpeza", "Restaurantes", "Academias"], "Embalagens": ["Delivery e restaurantes", "Confeitarias", "Lojas de e-commerce", "Indústrias de alimentos"], "Agropecuária": ["Fazendas", "Haras", "Pet shops", "Cooperativas"], "Papelaria e escritório": ["Escolas", "Escritórios", "Gráficas", "Órgãos públicos"], "Outro (descreva nos produtos)": []}};</script>
+<script>
+"use strict";
+// ================= Configuração =================
+const SUPABASE_URL = "https://kbnosaiuujprgcdtptyt.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtibm9zYWl1dWpwcmdjZHRwdHl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2Nzk1MjMsImV4cCI6MjEwOTI1NTUyM30.-xXtWhtXDxHmMQyQki_Ch51KIsOtoiM0tYc_0fuRk1E";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth: { persistSession: true, autoRefreshToken: true } });
+
+// ================= Utilidades =================
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const slug = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const digits = (s) => String(s || "").replace(/\D/g, "");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function toast(m) { const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 3000); }
+function fillSelect(sel, items, first) { sel.innerHTML = ""; if (first !== undefined) sel.add(new Option(first, "")); for (const [v, t] of items) sel.add(new Option(t, v)); }
+function erroEm(el, msg) { el.textContent = msg || ""; el.hidden = !msg; }
+const STATUS = ["Novo", "Contatado", "Respondeu", "Negociando", "Cliente", "Descartado", "Não contatar"];
+const MSG_PADRAO = "Olá, {empresa}! Tudo bem? Aqui é da {loja}. Trabalhamos com {produtos} na região de {cidade}, com entrega rápida e preço de distribuidor. Posso te mandar nossa tabela?\n\nSe preferir não receber mensagens, é só responder SAIR.";
+
+// Chama uma função do servidor e transforma erros em mensagens claras
+async function fn(nome, body) {
+  const { data, error } = await sb.functions.invoke(nome, { body });
+  if (error) {
+    let msg = "Não foi possível falar com o servidor. Verifique sua internet.", codigo = "rede";
+    try { const j = await error.context.json(); msg = j.erro || msg; codigo = j.codigo || String(error.context.status); } catch {}
+    if (codigo === "401") { await sair(); }
+    throw { message: msg, codigo };
+  }
+  return data;
+}
+
+// ================= Estado =================
+const st = { perfil: null, status: null, alvos: new Set(), prof: "completa", leads: [], rodando: false, parar: false, prefs: {} };
+
+// ================= Login =================
+async function iniciarLogin() {
+  $("telaApp").hidden = true; $("telaLogin").hidden = false;
+  let temAdmin = true;
+  try { const { data } = await sb.rpc("tem_admin"); temAdmin = data !== false; } catch {}
+  $("fAdmin").hidden = temAdmin; $("fLogin").hidden = !temAdmin;
+  (temAdmin ? $("lEmail") : $("aEmailAdm")).focus();
+}
+$("fLogin").addEventListener("submit", async (e) => {
+  e.preventDefault(); erroEm($("lErro"), "");
+  const b = $("bEntrar"); b.disabled = true; b.textContent = "Entrando…";
+  const { error } = await sb.auth.signInWithPassword({ email: $("lEmail").value.trim(), password: $("lSenha").value });
+  b.disabled = false; b.textContent = "Entrar";
+  if (error) { erroEm($("lErro"), /invalid/i.test(error.message) ? "E-mail ou senha incorretos." : "Não foi possível entrar: " + error.message); return; }
+  $("lSenha").value = ""; abrirApp();
+});
+$("fAdmin").addEventListener("submit", async (e) => {
+  e.preventDefault(); erroEm($("aErro"), "");
+  const email = $("aEmailAdm").value.trim(), senha = $("aSenhaAdm").value;
+  if (senha.length < 8) { erroEm($("aErro"), "A senha precisa ter pelo menos 8 caracteres."); return; }
+  const b = $("bCriarAdm"); b.disabled = true;
+  try {
+    await fn("admin", { acao: "primeiro_admin", email, senha, nome: $("aNomeAdm").value.trim() });
+    const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+    if (error) throw { message: error.message };
+    abrirApp();
+  } catch (err) { erroEm($("aErro"), err.message); }
+  b.disabled = false;
+});
+async function sair() { try { await sb.auth.signOut(); } catch {} st.perfil = null; st.leads = []; iniciarLogin(); }
+$("bSair").onclick = sair;
+
+async function abrirApp() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return iniciarLogin();
+  const { data: p, error } = await sb.from("perfis").select("*").eq("id", session.user.id).single();
+  if (error || !p) { toast("Não consegui carregar sua conta."); return sair(); }
+  if (!p.ativo) { await sb.auth.signOut(); await iniciarLogin(); erroEm($("lErro"), "Sua conta ainda não foi liberada. Fale com quem te vendeu o acesso."); return; }
+  if (p.validade && new Date(p.validade + "T23:59:59-03:00") < new Date()) { await sb.auth.signOut(); await iniciarLogin(); erroEm($("lErro"), "Seu acesso venceu. Fale com quem te vendeu o acesso para renovar."); return; }
+  st.perfil = p; st.prefs = p.prefs || {};
+  $("telaLogin").hidden = true; $("telaApp").hidden = false;
+  $("ola").textContent = `Olá, ${p.nome || p.email}`;
+  $("tabAdm").hidden = p.papel !== "admin";
+  carregarFiltros(); await carregarLeads(); atualizarStatus();
+  setTab(location.hash.slice(1));
+}
+
+// ================= Filtros =================
+const cidadesDe = (ddds) => ddds.flatMap((x) => (CIDADES[x] || "").split("|").filter(Boolean));
+function filtros() {
+  const uf = $("fUf").value, ddd = $("fDdd").value, cidade = $("fCid").value.trim();
+  const ddds = ddd ? [ddd] : UFS[uf][1].map(String);
+  const alvos = st.alvos.size ? [...st.alvos] : (SEGMENTOS[$("fSeg").value] || []).slice(0, 2);
+  const cidades = cidade ? [cidade] : ddd ? cidadesDe([+ddd]).slice(0, 3) : UFS[uf][1].map((x) => cidadesDe([x])[0]).filter(Boolean).slice(0, 4);
+  return { loja: $("fLoja").value.trim(), segmento: $("fSeg").value, produtos: $("fProd").value.trim(), alvos, excluir: $("fExc").value,
+    uf, ufNome: UFS[uf][0], ddd, ddds, cidade, cidades, soDdd: $("fSoDdd").checked };
+}
+function renderAlvos() {
+  const box = $("alvoChips"); box.innerHTML = "";
+  for (const a of new Set([...(SEGMENTOS[$("fSeg").value] || []), ...st.alvos])) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = a; b.setAttribute("aria-pressed", st.alvos.has(a));
+    b.onclick = () => { st.alvos.has(a) ? st.alvos.delete(a) : st.alvos.add(a); renderAlvos(); salvarPrefs(); }; box.append(b);
+  }
+}
+function renderDdd() { const d = UFS[$("fUf").value][1], prev = $("fDdd").value; fillSelect($("fDdd"), d.map((x) => [String(x), String(x)]), "Todos do estado"); if (d.map(String).includes(prev)) $("fDdd").value = prev; renderCidades(); }
+function renderCidades() { const uf = $("fUf").value, d = $("fDdd").value, c = cidadesDe(d ? [d] : UFS[uf][1]); $("cidList").innerHTML = c.map((x) => `<option value="${esc(x)}"></option>`).join(""); $("cidHint").textContent = d ? `DDD ${d}: ${c.slice(0, 4).join(", ")}` : `DDDs: ${UFS[uf][1].join(", ")}`; }
+function setProf(p) { st.prof = p; $("pRapida").setAttribute("aria-pressed", p === "rapida"); $("pCompleta").setAttribute("aria-pressed", p === "completa"); }
+let prefsT = null;
+function salvarPrefs() {
+  const f = filtros();
+  st.prefs = { ...st.prefs, filtros: { loja: f.loja, segmento: f.segmento, produtos: f.produtos, alvos: [...st.alvos], excluir: f.excluir, uf: f.uf, ddd: f.ddd, cidade: f.cidade, soDdd: f.soDdd, prof: st.prof }, msg: $("mMsg").value };
+  try { localStorage.setItem("radar.prefs", JSON.stringify(st.prefs)); } catch {}
+  clearTimeout(prefsT); prefsT = setTimeout(() => { if (st.perfil) sb.from("perfis").update({ prefs: st.prefs }).eq("id", st.perfil.id).then(() => {}); }, 1200);
+}
+function carregarFiltros() {
+  let p = st.prefs; if (!p || !p.filtros) { try { p = JSON.parse(localStorage.getItem("radar.prefs") || "{}"); } catch { p = {}; } }
+  const f = p.filtros;
+  if (f) {
+    if (SEGMENTOS[f.segmento]) $("fSeg").value = f.segmento; $("fLoja").value = f.loja || ""; if (f.produtos) $("fProd").value = f.produtos;
+    st.alvos = new Set(f.alvos || []); $("fExc").value = f.excluir || ""; if (UFS[f.uf]) $("fUf").value = f.uf; $("fSoDdd").checked = f.soDdd !== false; setProf(f.prof || "completa");
+  } else { $("fUf").value = "SP"; st.alvos = new Set((SEGMENTOS[$("fSeg").value] || []).slice(0, 2)); }
+  renderDdd();
+  if (f) { if (f.ddd && [...$("fDdd").options].some((o) => o.value === f.ddd)) $("fDdd").value = f.ddd; $("fCid").value = f.cidade || ""; } else $("fDdd").value = "11";
+  renderCidades(); renderAlvos();
+  $("mMsg").value = p.msg || MSG_PADRAO;
+}
+$("fSeg").onchange = () => { st.alvos = new Set((SEGMENTOS[$("fSeg").value] || []).slice(0, 2)); renderAlvos(); salvarPrefs(); atualizarStatus(); };
+$("fUf").onchange = () => { $("fCid").value = ""; renderDdd(); salvarPrefs(); atualizarStatus(); };
+$("fDdd").onchange = () => { renderCidades(); salvarPrefs(); atualizarStatus(); };
+["fCid", "fProd", "fLoja", "fExc"].forEach((id) => $(id).addEventListener("input", salvarPrefs));
+$("fSoDdd").onchange = () => { salvarPrefs(); atualizarStatus(); };
+$("pRapida").onclick = () => { setProf("rapida"); salvarPrefs(); };
+$("pCompleta").onclick = () => { setProf("completa"); salvarPrefs(); };
+function addAlvo() { const v = $("fAlvoIn").value.trim(); if (!v) return; st.alvos.add(v.slice(0, 50)); $("fAlvoIn").value = ""; renderAlvos(); salvarPrefs(); }
+$("bAddAlvo").onclick = addAlvo; $("fAlvoIn").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addAlvo(); } };
+$("bSugerir").onclick = async () => {
+  const b = $("bSugerir"); b.disabled = true; b.textContent = "Pensando…";
+  try { const r = await fn("captar", { acao: "sugerir", filtros: filtros() }); (r.clientes || []).forEach((c) => st.alvos.add(c)); renderAlvos(); salvarPrefs(); toast("Sugestões adicionadas"); }
+  catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = "Sugerir clientes com IA";
+};
+
+// ================= Status / saldo =================
+let statusT = null;
+function atualizarStatus() {
+  clearTimeout(statusT);
+  statusT = setTimeout(async () => {
+    try {
+      const s = await fn("captar", { acao: "status", filtros: filtros() }); st.status = s;
+      $("kSaldo").textContent = s.saldo.toLocaleString("pt-BR");
+      $("memInfo").textContent = s.banco ? `${s.banco.toLocaleString("pt-BR")} empresas desse ramo já conhecidas na região` : "";
+      if (!s.ia) setStatus("warn", "A pesquisa com IA está temporariamente indisponível. A captação usa só a memória do Radar.");
+    } catch (e) { if (e.codigo === "bloqueado" || e.codigo === "vencido") { toast(e.message); sair(); } }
+  }, 400);
+}
+
+// ================= Captação =================
+function log(msg, cls = "") {
+  const c = $("console"), d = document.createElement("div"); d.innerHTML = `<span class="t">${new Date().toTimeString().slice(0, 5)}</span>`;
+  const s = document.createElement("span"); s.textContent = msg; if (cls) s.className = cls; d.append(s); c.append(d);
+  while (c.childElementCount > 400) c.firstChild.remove(); c.scrollTop = c.scrollHeight;
+}
+function setStatus(kind, txt) { const s = $("status"); s.className = "status " + kind; s.innerHTML = `<span class="dot"></span><span>${esc(txt)}</span>`; }
+const funil = { mem: 0, bus: 0, ia: 0, novo: 0 };
+function renderFunil(p) { $("fnMem").textContent = funil.mem; $("fnBus").textContent = funil.bus; $("fnIa").textContent = funil.ia; $("fnNovo").textContent = funil.novo; if (p !== undefined) $("prog").style.width = p + "%"; }
+function montarConsultas(f) {
+  const ano = new Date().getFullYear(), prod = (f.produtos.split(",")[0] || f.segmento).trim();
+  const base = [], extra = [];
+  for (const c of f.cidades) for (const a of f.alvos.slice(0, 5)) {
+    base.push({ q: `${a} ${c} ${f.uf} telefone`, cidade: c }); base.push({ q: `${a} em ${c} guia de empresas`, cidade: c });
+    extra.push({ q: `${a} ${c} whatsapp contato`, cidade: c }); extra.push({ q: `${a} ${c} endereço e telefone`, cidade: c });
+  }
+  const dem = f.cidades.slice(0, 2).flatMap((c) => [{ q: `"procuro fornecedor" ${prod} ${c}`, cidade: c, demanda: 1 }, { q: `inauguração ${f.alvos[0]} ${c} ${ano}`, cidade: c, demanda: 1 }]);
+  const vistos = new Set(), out = [];
+  for (const x of [...base, ...extra, ...dem]) if (!vistos.has(x.q)) { vistos.add(x.q); out.push(x); }
+  return out;
+}
+function receber(novos) {
+  if (!novos || !novos.length) return 0;
+  const tem = new Set(st.leads.map((l) => l.id));
+  const add = novos.filter((l) => !tem.has(l.id));
+  st.leads = [...add, ...st.leads]; funil.novo += add.length; renderFunil(); renderLeads(); renderUltimos(add);
+  return add.length;
+}
+async function captar() {
+  if (st.rodando) return;
+  const f = filtros(); if (!f.alvos.length) { toast("Escolha ao menos um tipo de cliente"); return; }
+  salvarPrefs();
+  st.rodando = true; st.parar = false; $("bRun").disabled = true; $("bStop").hidden = false; $("radar").classList.add("busy");
+  Object.keys(funil).forEach((k) => (funil[k] = 0)); renderFunil(0); $("tUlt").innerHTML = "";
+  setStatus("info", "Robô trabalhando no servidor. Pode usar o computador normalmente; deixe esta página aberta.");
+  let limite = false;
+  try {
+    log("Consultando a memória do Radar…");
+    const b = await fn("captar", { acao: "banco", filtros: f });
+    const n = receber(b.novos); funil.mem = n; renderFunil(5);
+    log(n ? `✓ ${n} empresas entregues na hora pela memória (sem gastar IA)` : "Nenhuma empresa nova na memória para esses filtros", n ? "g" : "");
+    if (b.codigo === "limite") limite = true;
+  } catch (e) { log("Memória indisponível: " + e.message, "w"); if (e.codigo === "limite") limite = true; }
+
+  const consultas = limite ? [] : montarConsultas(f).slice(0, st.prof === "rapida" ? 6 : 18);
+  const abrir = st.prof === "rapida" ? 4 : 5;
+  let idx = 0, feitas = 0, falhas = 0, avisou = false;
+  const trab = async (w) => {
+    while (idx < consultas.length && !st.parar && !limite) {
+      const c = consultas[idx++], i = idx;
+      log("🔎 " + c.q);
+      try {
+        const r = await fn("captar", { acao: "buscar", q: c.q, cidade: c.cidade, demanda: !!c.demanda, abrir, motores: i % 2 ? ["brave", "bing", "ddg"] : ["bing", "brave", "ddg"], filtros: f });
+        funil.bus++; feitas++;
+        const s = r.stats || {};
+        funil.ia += s.ia || 0;
+        const n = receber(r.novos);
+        log(`  ${s.encontradas || 0} empresas com telefone · ${s.memoria || 0} já conhecidas · ${s.ia || 0} conferidas pela IA · ${n} novas para você${s.cache ? " · busca reaproveitada" : ""}`, n ? "g" : "");
+        if (r.aviso && !avisou) { avisou = true; log(r.aviso, "w"); }
+        if (r.codigo === "limite") { limite = true; }
+        falhas = 0;
+      } catch (e) {
+        if (e.codigo === "limite") { limite = true; break; }
+        if (e.codigo === "bloqueado" || e.codigo === "vencido") { log(e.message, "e"); st.parar = true; break; }
+        log("  busca pulada: " + e.message, "w");
+        if (++falhas >= 4) { log("Muitas falhas seguidas; parando. Tente de novo em alguns minutos.", "e"); st.parar = true; break; }
+      }
+      renderFunil(Math.min(99, 5 + Math.round((feitas / consultas.length) * 95)));
+    }
+  };
+  await Promise.all([trab(1), trab(2)]);
+  if (limite) log("Você atingiu o limite de leads deste mês. Fale com quem te vendeu o acesso para aumentar.", "e");
+  log(`Fim: ${funil.novo} leads novos (${funil.mem} da memória, ${funil.novo - funil.mem} da web).`, "g");
+  setStatus(funil.novo ? "ok" : "info", funil.novo ? `Pronto: ${funil.novo} leads novos na sua carteira.` : limite ? "Limite do mês atingido." : "Captação terminada sem leads novos. Tente outra cidade ou outros tipos de cliente.");
+  st.rodando = false; $("bRun").disabled = false; $("bStop").hidden = true; $("radar").classList.remove("busy"); renderFunil(100);
+  atualizarStatus();
+}
+$("bRun").onclick = captar;
+$("bStop").onclick = () => { st.parar = true; log("Parando depois das buscas em andamento…", "w"); };
+$("bVerCart").onclick = () => (location.hash = "carteira");
+
+// ================= Carteira =================
+async function carregarLeads() {
+  const { data, error } = await sb.from("leads").select("*").order("score", { ascending: false }).order("criado_em", { ascending: false }).limit(5000);
+  if (error) { toast("Não consegui carregar sua carteira."); return; }
+  st.leads = data || []; renderLeads();
+}
+const waDe = (l) => { const w = digits(l.whatsapp); if (w) return w; const t = digits(l.telefone); return t.length === 11 ? t : ""; };
+function msgPara(l) { const f = filtros(); return ($("mMsg").value || MSG_PADRAO).replace(/\{empresa\}/g, l.nome).replace(/\{cidade\}/g, l.cidade || "").replace(/\{produtos\}/g, (f.produtos.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 2).join(" e ") || f.segmento)).replace(/\{loja\}/g, f.loja || "nossa loja"); }
+function lista() {
+  const q = slug($("tBusca").value), d = $("tDdd").value, s = $("tSt").value, n = +$("tNota").value;
+  return st.leads.filter((l) => (!d || l.ddd === d) && (!s || l.status === s) && (l.score || 0) >= n && (!q || slug([l.nome, l.cidade, l.categoria, l.telefone, l.whatsapp, l.email].join(" ")).includes(q)));
+}
+function scoreCell(v) { const c = v >= 70 ? "" : v >= 45 ? "mid" : "low"; return `<div class="score"><div class="bar ${c}"><i style="width:${v}%"></i></div>${v}</div>`; }
+function contato(l) {
+  const wa = waDe(l);
+  return [l.telefone && digits(l.telefone) !== wa ? `<span class="mono">${esc(l.telefone)}</span>` : "",
+    wa ? `<span class="mono">${esc(l.whatsapp || l.telefone)}</span>${l.whatsapp ? "" : ' <span class="badge warn">celular</span>'}` : "",
+    l.email ? `<span class="mono">${esc(l.email)}</span>` : "",
+    l.site ? `<a href="${esc(l.site)}" target="_blank" rel="noopener">${esc(l.site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : "",
+    l.instagram ? `<a href="${esc(l.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ""].filter(Boolean).join("") || '<span class="hint">sem contato</span>';
+}
+function local(l, f) { return `${esc(l.cidade || "")}${l.uf ? " · " + esc(l.uf) : ""} ${l.ddd ? `<span class="badge ${f.ddds.includes(l.ddd) ? "ok" : "warn"}">DDD ${esc(l.ddd)}</span>` : ""}${l.endereco ? `<div class="cat">${esc(l.endereco)}</div>` : ""}`; }
+function fonte(l) { let h = ""; try { h = l.fonte ? new URL(l.fonte).hostname.replace(/^www\./, "") : ""; } catch {} return h ? `<div class="cat"><a href="${esc(l.fonte)}" target="_blank" rel="noopener">${esc(h)}</a></div>` : ""; }
+function renderLeads() {
+  const f = filtros();
+  $("kTotal").textContent = st.leads.length; $("cCart").textContent = st.leads.length;
+  $("kWa").textContent = st.leads.filter((l) => waDe(l)).length;
+  const kd = $("tDdd").value; fillSelect($("tDdd"), [...new Set(st.leads.map((l) => l.ddd).filter(Boolean))].sort().map((d) => [d, "DDD " + d]), "Todos DDD"); $("tDdd").value = kd;
+  const rows = lista().slice(0, 600);
+  if (!rows.length) { $("tbody").innerHTML = `<tr><td colspan="7" class="empty">${st.leads.length ? "Nenhum lead com esses filtros." : "Sua carteira está vazia. Vá em Captação e clique em Iniciar captação."}</td></tr>`; return; }
+  $("tbody").innerHTML = rows.map((l) => {
+    const wa = waDe(l);
+    return `<tr><td>${scoreCell(l.score || 0)}${l.origem === "banco" ? '<div class="cat">da memória</div>' : ""}</td>
+      <td><div class="name">${esc(l.nome)}</div><div class="cat">${esc(l.categoria || "")}</div>${fonte(l)}</td>
+      <td><div class="contact">${contato(l)}</div></td><td>${local(l, f)}</td>
+      <td><div class="why">${esc(l.motivo || "")}${l.sinal ? `<div><span class="badge ok">sinal</span> ${esc(l.sinal)}</div>` : ""}</div></td>
+      <td><select class="st" data-id="${l.id}" aria-label="Status de ${esc(l.nome)}">${STATUS.map((s) => `<option ${s === (l.status || "Novo") ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td><div class="rowact">${wa ? `<a class="btn small primary" data-wa="${l.id}" href="https://wa.me/55${wa}?text=${encodeURIComponent(msgPara(l))}" target="_blank" rel="noopener">WhatsApp</a>` : ""}<button class="btn small" data-del="${l.id}" type="button">Remover</button></div></td></tr>`;
+  }).join("");
+}
+function renderUltimos(add) {
+  const f = filtros();
+  $("tUlt").insertAdjacentHTML("afterbegin", add.slice(0, 50).map((l) => `<tr><td>${scoreCell(l.score || 0)}</td><td><div class="name">${esc(l.nome)}</div><div class="cat">${esc(l.categoria || "")}</div></td><td><div class="contact">${contato(l)}</div></td><td>${local(l, f)}</td><td><div class="why">${esc(l.motivo || "")}</div></td></tr>`).join(""));
+  while ($("tUlt").childElementCount > 60) $("tUlt").lastElementChild.remove();
+}
+async function mudar(id, patch) {
+  const { error } = await sb.from("leads").update({ ...patch, atualizado_em: new Date().toISOString() }).eq("id", id);
+  if (error) { toast("Não consegui salvar. Tente de novo."); return false; }
+  const l = st.leads.find((x) => x.id == id); if (l) Object.assign(l, patch); return true;
+}
+$("tbody").addEventListener("change", async (e) => { const s = e.target.closest("select.st"); if (s) await mudar(s.dataset.id, { status: s.value }); });
+$("tbody").addEventListener("click", async (e) => {
+  const w = e.target.closest("[data-wa]");
+  if (w) { const l = st.leads.find((x) => x.id == w.dataset.wa); if (l && (!l.status || l.status === "Novo")) { await mudar(l.id, { status: "Contatado", envios: (l.envios || 0) + 1, ultimo_envio: new Date().toISOString() }); setTimeout(renderLeads, 300); } return; }
+  const d = e.target.closest("[data-del]"); if (!d) return;
+  const box = d.parentElement, id = d.dataset.del;
+  box.innerHTML = `<span class="confirm">Remover? <button class="btn small" type="button" data-sim>Sim</button><button class="btn small" type="button" data-nao>Não</button></span>`;
+  box.querySelector("[data-nao]").onclick = renderLeads;
+  box.querySelector("[data-sim]").onclick = async () => { const { error } = await sb.from("leads").delete().eq("id", id); if (error) { toast("Não consegui remover."); return; } st.leads = st.leads.filter((x) => x.id != id); renderLeads(); };
+});
+["tBusca", "tDdd", "tSt", "tNota"].forEach((id) => $(id).addEventListener("input", renderLeads));
+let msgT = null; $("mMsg").oninput = () => { clearTimeout(msgT); msgT = setTimeout(() => { salvarPrefs(); renderLeads(); }, 600); };
+$("bCsv").onclick = () => {
+  const rows = lista(); if (!rows.length) { toast("Nenhum lead para baixar"); return; }
+  const cols = ["score", "nome", "categoria", "telefone", "whatsapp", "email", "site", "instagram", "endereco", "cidade", "uf", "ddd", "motivo", "sinal", "fonte", "status"];
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = "﻿" + cols.join(";") + "\n" + rows.map((r) => cols.map((c) => q(r[c])).join(";")).join("\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `leads-radar-${new Date().toISOString().slice(0, 10)}.csv`; document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+};
+$("bAdd").onclick = () => { $("addForm").reset(); $("dCid").value = $("fCid").value; $("dlg").showModal(); };
+$("dCancel").onclick = () => $("dlg").close();
+$("addForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const nome = $("dNome").value.trim(); if (!nome) return;
+  let d = digits($("dTel").value); if (d.startsWith("55") && d.length >= 12) d = d.slice(2);
+  const fmt = d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : "";
+  const row = { chave: d ? "t" + d : "n-" + slug(nome) + "-" + Date.now(), nome, categoria: $("dCat").value.trim(), telefone: d.length === 10 ? fmt : "", whatsapp: d.length === 11 ? fmt : "",
+    email: $("dEmail").value.trim(), cidade: $("dCid").value.trim(), uf: $("fUf").value, ddd: d.slice(0, 2), motivo: $("dMot").value.trim(), score: 50, origem: "manual" };
+  const { data, error } = await sb.from("leads").insert(row).select("*").single();
+  if (error) { toast(/duplicate/i.test(error.message) ? "Esse telefone já está na sua carteira." : "Não consegui salvar."); return; }
+  st.leads.unshift(data); renderLeads(); $("dlg").close(); toast("Lead salvo");
+});
+
+// ================= Administração =================
+let contas = [];
+async function carregarAdmin() {
+  try {
+    const r = await fn("admin", { acao: "listar" }); contas = r.contas || [];
+    $("admIa").hidden = !!r.ia;
+    $("aMemEmp").textContent = (r.memoria?.empresas || 0).toLocaleString("pt-BR"); $("aMemJul").textContent = (r.memoria?.julgamentos || 0).toLocaleString("pt-BR");
+    $("aContas").textContent = contas.filter((c) => c.ativo && c.papel !== "admin").length;
+    $("aLeadsMes").textContent = contas.reduce((s, c) => s + (c.uso?.lead || 0), 0).toLocaleString("pt-BR");
+    const hoje = new Date().toISOString().slice(0, 10);
+    $("aBody").innerHTML = contas.length ? contas.map((c) => {
+      const venc = c.validade && c.validade < hoje;
+      const sit = c.papel === "admin" ? '<span class="badge ex">administrador</span>' : !c.ativo ? '<span class="badge bad">bloqueado</span>' : venc ? '<span class="badge warn">vencido</span>' : '<span class="badge ok">ativo</span>';
+      return `<tr><td><div class="name">${esc(c.nome || "")}</div><div class="cat">${esc(c.email || "")}${c.empresa ? " · " + esc(c.empresa) : ""}</div></td>
+        <td class="mono">${c.uso.lead} leads<div class="cat">${c.uso.busca} buscas · ${c.uso.ia} análises IA</div></td>
+        <td class="mono">${(c.limite_mes || 0).toLocaleString("pt-BR")}</td>
+        <td class="mono">${c.validade ? new Date(c.validade + "T12:00").toLocaleDateString("pt-BR") : "sem prazo"}</td>
+        <td>${sit}</td>
+        <td><div class="rowact">${c.papel === "admin" ? "" : `<button class="btn small" type="button" data-ed="${c.id}">Editar</button><button class="btn small" type="button" data-tog="${c.id}" data-on="${c.ativo ? 1 : 0}">${c.ativo ? "Bloquear" : "Liberar"}</button>`}</div></td></tr>`;
+    }).join("") : `<tr><td colspan="6" class="empty">Nenhum cliente ainda. Crie o primeiro acesso ao lado.</td></tr>`;
+  } catch (e) { $("aBody").innerHTML = `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`; }
+}
+const gerarSenha = () => { const a = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"; const v = crypto.getRandomValues(new Uint32Array(10)); return [...v].map((x) => a[x % a.length]).join(""); };
+$("bGerar").onclick = () => ($("nSenha").value = gerarSenha());
+$("bGerar2").onclick = () => ($("eSenha").value = gerarSenha());
+$("bAdmSync").onclick = carregarAdmin;
+$("fNovo").addEventListener("submit", async (e) => {
+  e.preventDefault(); erroEm($("nErro"), ""); $("nOk").hidden = true;
+  const email = $("nEmail").value.trim(), senha = $("nSenha").value;
+  if (!email) { erroEm($("nErro"), "Informe o e-mail."); return; }
+  if (senha.length < 8) { erroEm($("nErro"), "A senha precisa ter pelo menos 8 caracteres."); return; }
+  try {
+    await fn("admin", { acao: "criar", email, senha, nome: $("nNome").value.trim(), empresa: $("nEmp").value.trim(), limite_mes: +$("nLim").value || 0, validade: $("nVal").value || null });
+    $("nOk").hidden = false;
+    $("nOk").innerHTML = `<b>Acesso criado.</b><span>Envie ao cliente o endereço deste site e os dados abaixo:</span><div class="mono">E-mail: ${esc(email)}<br>Senha: ${esc(senha)}</div>`;
+    $("fNovo").reset(); $("nLim").value = 300; carregarAdmin();
+  } catch (err) { erroEm($("nErro"), err.message); }
+});
+let editando = null;
+$("aBody").addEventListener("click", async (e) => {
+  const t = e.target.closest("[data-tog]");
+  if (t) { t.disabled = true; try { await fn("admin", { acao: "atualizar", id: t.dataset.tog, ativo: t.dataset.on !== "1" }); } catch (err) { toast(err.message); } carregarAdmin(); return; }
+  const ed = e.target.closest("[data-ed]"); if (!ed) return;
+  editando = contas.find((c) => c.id === ed.dataset.ed); if (!editando) return;
+  $("edTit").textContent = "Editar " + (editando.nome || editando.email); $("eLim").value = editando.limite_mes || 0; $("eVal").value = editando.validade || ""; $("eSenha").value = ""; erroEm($("eErro"), "");
+  $("dlgEd").showModal();
+});
+$("eCancel").onclick = () => $("dlgEd").close();
+$("edForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); if (!editando) return;
+  const senha = $("eSenha").value.trim();
+  if (senha && senha.length < 8) { erroEm($("eErro"), "A senha precisa ter pelo menos 8 caracteres."); return; }
+  try { await fn("admin", { acao: "atualizar", id: editando.id, limite_mes: +$("eLim").value || 0, validade: $("eVal").value || null, ...(senha ? { senha } : {}) }); $("dlgEd").close(); toast(senha ? "Salvo. Passe a nova senha ao cliente." : "Salvo"); carregarAdmin(); }
+  catch (err) { erroEm($("eErro"), err.message); }
+});
+
+// ================= Abas =================
+function setTab(t) {
+  if (!["captacao", "carteira", "admin"].includes(t) || (t === "admin" && st.perfil?.papel !== "admin")) t = "captacao";
+  $("tabCap").setAttribute("aria-selected", t === "captacao"); $("tabCart").setAttribute("aria-selected", t === "carteira"); $("tabAdm").setAttribute("aria-selected", t === "admin");
+  $("viewCap").hidden = t !== "captacao"; $("viewCart").hidden = t !== "carteira"; $("viewAdm").hidden = t !== "admin";
+  if (t === "carteira") renderLeads(); if (t === "admin") carregarAdmin();
+}
+$("tabCap").onclick = () => (location.hash = "captacao"); $("tabCart").onclick = () => (location.hash = "carteira"); $("tabAdm").onclick = () => (location.hash = "admin");
+window.addEventListener("hashchange", () => { if (st.perfil) setTab(location.hash.slice(1)); });
+window.addEventListener("beforeunload", (e) => { if (st.rodando) { e.preventDefault(); e.returnValue = ""; } });
+
+// ================= Início =================
+fillSelect($("fSeg"), Object.keys(SEGMENTOS).map((s) => [s, s]));
+fillSelect($("fUf"), Object.entries(UFS).map(([k, [n]]) => [k, `${k} · ${n}`]));
+fillSelect($("tSt"), STATUS.map((s) => [s, s]), "Todos status");
+sb.auth.getSession().then(({ data }) => (data.session ? abrirApp() : iniciarLogin()));
+
+</script>
+</body>
+</html>

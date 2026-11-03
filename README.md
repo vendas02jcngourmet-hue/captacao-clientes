@@ -1,4 +1,15 @@
-# Captação de clientes: Fase 1
+# Captação de clientes
+
+## Radar de Clientes (página web)
+
+O `index.html` na raiz é o site do Radar de Clientes, publicado pelo GitHub Pages
+(Settings → Pages → Branch `main`, pasta `/ (root)`). Os clientes entram com e-mail e senha;
+a pesquisa, a IA e o banco de dados rodam no Supabase (projeto `radar-clientes`).
+Para atualizar o site, basta substituir o `index.html`.
+
+---
+
+## Fase 1: listas pela base de CNPJ (programa em Python)
 
 Gera, para cada cliente da plataforma, uma lista diária de empresas para ligar (100 por dia por padrão),
 filtrada pelo perfil que o cliente escolheu. A base é o cadastro público de CNPJ da Receita Federal.
