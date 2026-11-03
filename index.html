@@ -174,6 +174,20 @@ dialog::backdrop{background:rgba(5,15,15,.45)}
 details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-size:16px}
 .tabs{margin-bottom:-6px}
 #viewCart,#viewAdm{display:flex;flex-direction:column;gap:20px}
+/* analisador de leads */
+.cls{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;font-weight:600}
+.cls b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;color:#fff;font-size:12px}
+.cls.A b{background:#0f8a5f}.cls.B b{background:#2f7dd1}.cls.C b{background:#c98a12}.cls.D b{background:#b9473b}
+.linkbtn{background:none;border:0;padding:0;color:var(--info);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
+.anhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.anota{text-align:right;font-family:var(--mono);font-size:28px;font-weight:700;line-height:1}
+.anota small{display:block;font-size:12px;font-weight:500;margin-top:4px}
+.anlist{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:55vh;overflow:auto}
+.anlist li{display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.35}
+.anlist li .ic{flex:0 0 20px;text-align:center;font-weight:700}
+.anlist li.ok .ic{color:var(--accent)}.anlist li.no{color:var(--muted, #6b7a7a)}.anlist li.no .ic{color:var(--bad)}
+.anlist li.alerta{color:var(--bad);font-weight:600}.anlist li.info .ic{color:var(--warn)}
+.anlist a{word-break:break-all}
 </style>
 </head>
 <body>
@@ -291,8 +305,9 @@ details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-s
         <input id="tBusca" placeholder="Buscar nome, cidade, telefone">
         <select id="tDdd" aria-label="Filtrar por DDD"><option value="">Todos DDD</option></select>
         <select id="tSt" aria-label="Filtrar por status"></select>
-        <select id="tNota" aria-label="Nota mínima"><option value="0">Qualquer nota</option><option value="50">Nota 50+</option><option value="70">Nota 70+</option></select>
+        <select id="tNota" aria-label="Nota mínima"><option value="0">Qualquer nota</option><option value="50">Nota 50+</option><option value="70">Nota 70+</option><option value="-1">Ainda não avaliados</option><option value="-2">Avaliados: A e B</option></select>
         <span class="grow"></span>
+        <button class="btn small primary" id="bAval" type="button" title="Procura cada lead no Instagram, Facebook, Google, site e CNPJ e dá uma nota">Avaliar leads</button>
         <button class="btn small" id="bAdd" type="button">Adicionar lead</button>
         <button class="btn small" id="bCsv" type="button">Baixar Excel (CSV)</button>
       </div>
@@ -364,6 +379,14 @@ details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-s
     <div class="btnrow" style="justify-content:flex-end"><button class="btn" type="button" id="dCancel">Cancelar</button><button class="btn primary" type="submit">Salvar lead</button></div>
   </form>
 </dialog>
+<dialog id="dlgAn">
+  <div class="stack">
+    <div class="anhead"><div><h2 id="anTit">Análise</h2><div class="cat" id="anSub"></div></div><div class="anota" id="anNota"></div></div>
+    <ul class="anlist" id="anLista"></ul>
+    <p class="hint" id="anData"></p>
+    <div class="btnrow" style="justify-content:flex-end"><button class="btn" type="button" id="anRefazer">Analisar de novo</button><button class="btn primary" type="button" id="anFechar">Fechar</button></div>
+  </div>
+</dialog>
 <dialog id="dlgEd">
   <form id="edForm" method="dialog" class="stack">
     <h2 id="edTit">Editar cliente</h2>
@@ -377,7 +400,6 @@ details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-s
   </form>
 </dialog>
 <div class="toast" id="toast" hidden></div>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>const {UFS, CIDADES, SEGMENTOS} = {"UFS": {"AC": ["Acre", [68]], "AL": ["Alagoas", [82]], "AP": ["Amapá", [96]], "AM": ["Amazonas", [92, 97]], "BA": ["Bahia", [71, 73, 74, 75, 77]], "CE": ["Ceará", [85, 88]], "DF": ["Distrito Federal", [61]], "ES": ["Espírito Santo", [27, 28]], "GO": ["Goiás", [62, 64]], "MA": ["Maranhão", [98, 99]], "MT": ["Mato Grosso", [65, 66]], "MS": ["Mato Grosso do Sul", [67]], "MG": ["Minas Gerais", [31, 32, 33, 34, 35, 37, 38]], "PA": ["Pará", [91, 93, 94]], "PB": ["Paraíba", [83]], "PR": ["Paraná", [41, 42, 43, 44, 45, 46]], "PE": ["Pernambuco", [81, 87]], "PI": ["Piauí", [86, 89]], "RJ": ["Rio de Janeiro", [21, 22, 24]], "RN": ["Rio Grande do Norte", [84]], "RS": ["Rio Grande do Sul", [51, 53, 54, 55]], "RO": ["Rondônia", [69]], "RR": ["Roraima", [95]], "SC": ["Santa Catarina", [47, 48, 49]], "SP": ["São Paulo", [11, 12, 13, 14, 15, 16, 17, 18, 19]], "SE": ["Sergipe", [79]], "TO": ["Tocantins", [63]]}, "CIDADES": {"11": "São Paulo|Guarulhos|Osasco|Santo André|São Bernardo do Campo|Mogi das Cruzes|Jundiaí|Barueri", "12": "São José dos Campos|Taubaté|Jacareí|Caraguatatuba", "13": "Santos|São Vicente|Praia Grande|Guarujá|Registro", "14": "Bauru|Marília|Botucatu|Jaú", "15": "Sorocaba|Itapetininga|Itu", "16": "Ribeirão Preto|Franca|São Carlos|Araraquara", "17": "São José do Rio Preto|Catanduva|Barretos", "18": "Presidente Prudente|Araçatuba|Assis", "19": "Campinas|Piracicaba|Limeira|Americana", "21": "Rio de Janeiro|Niterói|Duque de Caxias|Nova Iguaçu|São Gonçalo", "22": "Campos dos Goytacazes|Macaé|Cabo Frio|Nova Friburgo", "24": "Volta Redonda|Petrópolis|Barra Mansa|Resende", "27": "Vitória|Vila Velha|Serra|Cariacica|Linhares", "28": "Cachoeiro de Itapemirim", "31": "Belo Horizonte|Contagem|Betim|Ipatinga", "32": "Juiz de Fora|Barbacena", "33": "Governador Valadares|Teófilo Otoni", "34": "Uberlândia|Uberaba|Patos de Minas", "35": "Poços de Caldas|Pouso Alegre|Varginha", "37": "Divinópolis|Itaúna", "38": "Montes Claros", "41": "Curitiba|São José dos Pinhais|Paranaguá", "42": "Ponta Grossa|Guarapuava", "43": "Londrina|Apucarana", "44": "Maringá|Umuarama", "45": "Cascavel|Foz do Iguaçu|Toledo", "46": "Francisco Beltrão|Pato Branco", "47": "Joinville|Blumenau|Itajaí|Balneário Camboriú", "48": "Florianópolis|São José|Criciúma", "49": "Chapecó|Lages", "51": "Porto Alegre|Canoas|Novo Hamburgo|Gravataí", "53": "Pelotas|Rio Grande", "54": "Caxias do Sul|Passo Fundo|Bento Gonçalves", "55": "Santa Maria|Santo Ângelo|Uruguaiana", "61": "Brasília", "62": "Goiânia|Aparecida de Goiânia|Anápolis", "63": "Palmas|Araguaína", "64": "Rio Verde|Itumbiara|Catalão", "65": "Cuiabá|Várzea Grande", "66": "Rondonópolis|Sinop", "67": "Campo Grande|Dourados|Três Lagoas", "68": "Rio Branco", "69": "Porto Velho|Ji-Paraná", "71": "Salvador|Camaçari|Lauro de Freitas", "73": "Ilhéus|Itabuna|Porto Seguro", "74": "Juazeiro", "75": "Feira de Santana", "77": "Vitória da Conquista|Barreiras", "79": "Aracaju", "81": "Recife|Jaboatão dos Guararapes|Olinda|Caruaru", "82": "Maceió|Arapiraca", "83": "João Pessoa|Campina Grande", "84": "Natal|Mossoró", "85": "Fortaleza|Caucaia", "86": "Teresina|Parnaíba", "87": "Petrolina|Garanhuns", "88": "Juazeiro do Norte|Sobral", "89": "Picos|Floriano", "91": "Belém|Ananindeua", "92": "Manaus", "93": "Santarém", "94": "Marabá", "95": "Boa Vista", "96": "Macapá", "97": "Coari|Tefé", "98": "São Luís", "99": "Imperatriz|Caxias"}, "SEGMENTOS": {"Material de construção": ["Construtoras", "Empreiteiros e pedreiros", "Arquitetos", "Condomínios"], "Moda e vestuário": ["Lojas de roupas", "Boutiques", "Uniformes para empresas", "Revendedoras"], "Alimentos e bebidas (atacado)": ["Restaurantes", "Lanchonetes", "Mercados de bairro", "Padarias"], "Autopeças": ["Oficinas mecânicas", "Frotas e transportadoras", "Funilarias", "Auto elétricas"], "Informática e eletrônicos": ["Escritórios de contabilidade", "Escolas", "Clínicas", "Assistências técnicas"], "Móveis e decoração": ["Arquitetos e designers", "Imobiliárias", "Hotéis e pousadas", "Escritórios"], "Cosméticos e beleza": ["Salões de beleza", "Barbearias", "Clínicas de estética", "Manicures"], "Produtos de limpeza": ["Condomínios", "Empresas de limpeza", "Restaurantes", "Academias"], "Embalagens": ["Delivery e restaurantes", "Confeitarias", "Lojas de e-commerce", "Indústrias de alimentos"], "Agropecuária": ["Fazendas", "Haras", "Pet shops", "Cooperativas"], "Papelaria e escritório": ["Escolas", "Escritórios", "Gráficas", "Órgãos públicos"], "Outro (descreva nos produtos)": []}};</script>
 <script>
@@ -628,7 +650,8 @@ const waDe = (l) => { const w = digits(l.whatsapp); if (w) return w; const t = d
 function msgPara(l) { const f = filtros(); return ($("mMsg").value || MSG_PADRAO).replace(/\{empresa\}/g, l.nome).replace(/\{cidade\}/g, l.cidade || "").replace(/\{produtos\}/g, (f.produtos.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 2).join(" e ") || f.segmento)).replace(/\{loja\}/g, f.loja || "nossa loja"); }
 function lista() {
   const q = slug($("tBusca").value), d = $("tDdd").value, s = $("tSt").value, n = +$("tNota").value;
-  return st.leads.filter((l) => (!d || l.ddd === d) && (!s || l.status === s) && (l.score || 0) >= n && (!q || slug([l.nome, l.cidade, l.categoria, l.telefone, l.whatsapp, l.email].join(" ")).includes(q)));
+  const passaNota = (l) => n === -1 ? l.nota == null : n === -2 ? l.nota != null && l.nota >= 55 : (l.nota ?? l.score ?? 0) >= n;
+  return st.leads.filter((l) => (!d || l.ddd === d) && (!s || l.status === s) && passaNota(l) && (!q || slug([l.nome, l.cidade, l.categoria, l.telefone, l.whatsapp, l.email].join(" ")).includes(q)));
 }
 function scoreCell(v) { const c = v >= 70 ? "" : v >= 45 ? "mid" : "low"; return `<div class="score"><div class="bar ${c}"><i style="width:${v}%"></i></div>${v}</div>`; }
 function contato(l) {
@@ -637,7 +660,8 @@ function contato(l) {
     wa ? `<span class="mono">${esc(l.whatsapp || l.telefone)}</span>${l.whatsapp ? "" : ' <span class="badge warn">celular</span>'}` : "",
     l.email ? `<span class="mono">${esc(l.email)}</span>` : "",
     l.site ? `<a href="${esc(l.site)}" target="_blank" rel="noopener">${esc(l.site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : "",
-    l.instagram ? `<a href="${esc(l.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ""].filter(Boolean).join("") || '<span class="hint">sem contato</span>';
+    l.instagram ? `<a href="${esc(l.instagram)}" target="_blank" rel="noopener">Instagram</a>` : "",
+    l.facebook ? `<a href="${esc(l.facebook)}" target="_blank" rel="noopener">Facebook</a>` : ""].filter(Boolean).join("") || '<span class="hint">sem contato</span>';
 }
 function local(l, f) { return `${esc(l.cidade || "")}${l.uf ? " · " + esc(l.uf) : ""} ${l.ddd ? `<span class="badge ${f.ddds.includes(l.ddd) ? "ok" : "warn"}">DDD ${esc(l.ddd)}</span>` : ""}${l.endereco ? `<div class="cat">${esc(l.endereco)}</div>` : ""}`; }
 function fonte(l) { let h = ""; try { h = l.fonte ? new URL(l.fonte).hostname.replace(/^www\./, "") : ""; } catch {} return h ? `<div class="cat"><a href="${esc(l.fonte)}" target="_blank" rel="noopener">${esc(h)}</a></div>` : ""; }
@@ -650,14 +674,62 @@ function renderLeads() {
   if (!rows.length) { $("tbody").innerHTML = `<tr><td colspan="7" class="empty">${st.leads.length ? "Nenhum lead com esses filtros." : "Sua carteira está vazia. Vá em Captação e clique em Iniciar captação."}</td></tr>`; return; }
   $("tbody").innerHTML = rows.map((l) => {
     const wa = waDe(l);
-    return `<tr><td>${scoreCell(l.score || 0)}${l.origem === "banco" ? '<div class="cat">da memória</div>' : ""}</td>
+    return `<tr><td>${notaCell(l)}</td>
       <td><div class="name">${esc(l.nome)}</div><div class="cat">${esc(l.categoria || "")}</div>${fonte(l)}</td>
       <td><div class="contact">${contato(l)}</div></td><td>${local(l, f)}</td>
       <td><div class="why">${esc(l.motivo || "")}${l.sinal ? `<div><span class="badge ok">sinal</span> ${esc(l.sinal)}</div>` : ""}</div></td>
       <td><select class="st" data-id="${l.id}" aria-label="Status de ${esc(l.nome)}">${STATUS.map((s) => `<option ${s === (l.status || "Novo") ? "selected" : ""}>${s}</option>`).join("")}</select></td>
-      <td><div class="rowact">${wa ? `<a class="btn small primary" data-wa="${l.id}" href="https://wa.me/55${wa}?text=${encodeURIComponent(msgPara(l))}" target="_blank" rel="noopener">WhatsApp</a>` : ""}<button class="btn small" data-del="${l.id}" type="button">Remover</button></div></td></tr>`;
+      <td><div class="rowact">${wa ? `<a class="btn small primary" data-wa="${l.id}" href="https://wa.me/55${wa}?text=${encodeURIComponent(msgPara(l))}" target="_blank" rel="noopener">WhatsApp</a>` : ""}${l.nota == null ? `<button class="btn small" data-av="${l.id}" type="button">Avaliar</button>` : ""}<button class="btn small" data-del="${l.id}" type="button">Remover</button></div></td></tr>`;
   }).join("");
 }
+// ================= Analisador de leads =================
+const ROT = { A: "Quente", B: "Bom", C: "Morno", D: "Fraco" };
+function notaCell(l) {
+  if (l.nota == null) return `${scoreCell(l.score || 0)}<div class="cat">${l.origem === "banco" ? "da memória · " : ""}não avaliado</div>`;
+  const c = (l.analise && l.analise.classe) || (l.nota >= 75 ? "A" : l.nota >= 55 ? "B" : l.nota >= 35 ? "C" : "D");
+  return `<div class="cls ${c}"><b>${c}</b>${l.nota}</div><div class="cat">${ROT[c]} · <button class="linkbtn" type="button" data-an="${l.id}">ver análise</button></div>`;
+}
+async function avaliarUm(id, refazer = false) {
+  try {
+    const r = await fn("avaliar", { id: +id, refazer });
+    const i = st.leads.findIndex((x) => x.id == id); if (i >= 0 && r.lead) st.leads[i] = r.lead;
+    return r.lead;
+  } catch (e) { toast(e.message); if (e.codigo === "bloqueado" || e.codigo === "vencido") st.pararAval = true; return null; }
+}
+let analisando = false;
+$("bAval").onclick = async () => {
+  const b = $("bAval");
+  if (analisando) { st.pararAval = true; b.textContent = "Parando…"; return; }
+  const fila = lista().filter((l) => l.nota == null && (digits(l.whatsapp) || digits(l.telefone)).length >= 10).slice(0, 30);
+  if (!fila.length) { toast("Todos os leads desta lista já foram avaliados"); return; }
+  analisando = true; st.pararAval = false;
+  let feitos = 0;
+  for (const l of fila) {
+    if (st.pararAval) break;
+    b.textContent = `Avaliando ${feitos + 1} de ${fila.length}… (parar)`;
+    await avaliarUm(l.id); feitos++; renderLeads();
+  }
+  analisando = false; b.textContent = "Avaliar leads";
+  toast(`${feitos} ${feitos === 1 ? "lead avaliado" : "leads avaliados"}${fila.length === 30 ? ". Clique de novo para avaliar mais" : ""}`);
+};
+let anAtual = null;
+function abrirAnalise(id) {
+  const l = st.leads.find((x) => x.id == id); if (!l || !l.analise) return;
+  anAtual = l.id; const a = l.analise, c = a.classe || "D";
+  $("anTit").textContent = l.nome;
+  $("anSub").textContent = [l.categoria, l.cidade, l.whatsapp || l.telefone].filter(Boolean).join(" · ");
+  $("anNota").innerHTML = `<span class="cls ${c}"><b>${c}</b></span> ${l.nota}<small>${ROT[c]}</small>`;
+  $("anLista").innerHTML = (a.pontos || []).map((p) => `<li class="${p.alerta ? "alerta" : p.info ? "info" : p.ok ? "ok" : "no"}"><span class="ic">${p.alerta || p.info ? "!" : p.ok ? "✓" : "✗"}</span><span>${esc(p.texto)}${p.link ? `<br><a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : ""}</span></li>`).join("");
+  $("anData").textContent = l.analisado_em ? "Analisado em " + new Date(l.analisado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + ". A nota cruza telefone, nome e cidade em várias fontes da internet." : "";
+  $("dlgAn").showModal();
+}
+$("anFechar").onclick = () => $("dlgAn").close();
+$("anRefazer").onclick = async () => {
+  const b = $("anRefazer"); b.disabled = true; b.textContent = "Analisando…";
+  const l = await avaliarUm(anAtual, true);
+  b.disabled = false; b.textContent = "Analisar de novo";
+  renderLeads(); if (l) abrirAnalise(l.id);
+};
 function renderUltimos(add) {
   const f = filtros();
   $("tUlt").insertAdjacentHTML("afterbegin", add.slice(0, 50).map((l) => `<tr><td>${scoreCell(l.score || 0)}</td><td><div class="name">${esc(l.nome)}</div><div class="cat">${esc(l.categoria || "")}</div></td><td><div class="contact">${contato(l)}</div></td><td>${local(l, f)}</td><td><div class="why">${esc(l.motivo || "")}</div></td></tr>`).join(""));
@@ -672,6 +744,8 @@ $("tbody").addEventListener("change", async (e) => { const s = e.target.closest(
 $("tbody").addEventListener("click", async (e) => {
   const w = e.target.closest("[data-wa]");
   if (w) { const l = st.leads.find((x) => x.id == w.dataset.wa); if (l && (!l.status || l.status === "Novo")) { await mudar(l.id, { status: "Contatado", envios: (l.envios || 0) + 1, ultimo_envio: new Date().toISOString() }); setTimeout(renderLeads, 300); } return; }
+  const an = e.target.closest("[data-an]"); if (an) { abrirAnalise(an.dataset.an); return; }
+  const av = e.target.closest("[data-av]"); if (av) { av.disabled = true; av.textContent = "Avaliando…"; await avaliarUm(av.dataset.av); renderLeads(); return; }
   const d = e.target.closest("[data-del]"); if (!d) return;
   const box = d.parentElement, id = d.dataset.del;
   box.innerHTML = `<span class="confirm">Remover? <button class="btn small" type="button" data-sim>Sim</button><button class="btn small" type="button" data-nao>Não</button></span>`;
@@ -682,7 +756,7 @@ $("tbody").addEventListener("click", async (e) => {
 let msgT = null; $("mMsg").oninput = () => { clearTimeout(msgT); msgT = setTimeout(() => { salvarPrefs(); renderLeads(); }, 600); };
 $("bCsv").onclick = () => {
   const rows = lista(); if (!rows.length) { toast("Nenhum lead para baixar"); return; }
-  const cols = ["score", "nome", "categoria", "telefone", "whatsapp", "email", "site", "instagram", "endereco", "cidade", "uf", "ddd", "motivo", "sinal", "fonte", "status"];
+  const cols = ["nota", "score", "nome", "categoria", "telefone", "whatsapp", "email", "site", "instagram", "facebook", "endereco", "cidade", "uf", "ddd", "motivo", "sinal", "fonte", "status"];
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const csv = "﻿" + cols.join(";") + "\n" + rows.map((r) => cols.map((c) => q(r[c])).join(";")).join("\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
