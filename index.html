@@ -209,7 +209,7 @@ details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-s
       <div>
         <div class="eyebrow" id="ola">Robô de captação</div>
         <h1>Radar de Clientes</h1>
-        <p class="sub">Encontra empresas que compram seus produtos, por estado, DDD e cidade. Empresas que o Radar já conhece chegam na hora; as novas são pesquisadas na internet e conferidas pela IA.</p>
+        <p class="sub">Encontra empresas que compram seus produtos, por estado, DDD e cidade. Empresas que o Radar já conhece chegam na hora; as novas são pesquisadas na internet, em buscadores e guias comerciais.</p>
       </div>
     </div>
     <div class="kpis">
@@ -237,7 +237,7 @@ details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-s
         <label for="fAlvoIn">Quem compra de você</label>
         <div class="chips" id="alvoChips"></div>
         <div class="inline"><input id="fAlvoIn" placeholder="Adicionar e apertar Enter"><button class="btn small" id="bAddAlvo" type="button">+</button></div>
-        <button class="btn small" id="bSugerir" type="button">Sugerir clientes com IA</button>
+        <button class="btn small" id="bSugerir" type="button">Sugerir clientes</button>
       </div>
       <div class="field"><label for="fExc">Não trazer (concorrentes, ramos fora)</label><input id="fExc" placeholder="Ex.: depósito de material, home center"></div>
 
@@ -271,7 +271,7 @@ details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-s
         <div class="funnel">
           <div><b id="fnMem">0</b><span>da memória do Radar</span></div>
           <div><b id="fnBus">0</b><span>buscas na web</span></div>
-          <div><b id="fnIa">0</b><span>conferidas pela IA</span></div>
+          <div><b id="fnIa">0</b><span>empresas analisadas</span></div>
           <div><b id="fnNovo">0</b><span>leads novos</span></div>
         </div>
         <div class="console" id="console"><div><span class="t">--:--</span>Aguardando.</div></div>
@@ -315,7 +315,7 @@ details summary{cursor:pointer;font-family:var(--display);font-weight:600;font-s
 
   <!-- ===== ADMINISTRAÇÃO ===== -->
   <section class="main" id="viewAdm" hidden>
-    <div class="status warn" id="admIa" hidden><span class="dot"></span><span>A IA ainda não está configurada no servidor. Sem ela, os clientes só recebem empresas da memória do Radar. Cadastre a chave seguindo o LEIA-ME.</span></div>
+    <div class="status warn" id="admIa" hidden style="display:none"><span class="dot"></span><span>A IA ainda não está configurada no servidor. Sem ela, os clientes só recebem empresas da memória do Radar. Cadastre a chave seguindo o LEIA-ME.</span></div>
     <div class="funnel">
       <div><b id="aMemEmp">0</b><span>empresas na memória</span></div>
       <div><b id="aMemJul">0</b><span>julgamentos guardados</span></div>
@@ -510,15 +510,9 @@ $("pCompleta").onclick = () => { setProf("completa"); salvarPrefs(); };
 function addAlvo() { const v = $("fAlvoIn").value.trim(); if (!v) return; st.alvos.add(v.slice(0, 50)); $("fAlvoIn").value = ""; renderAlvos(); salvarPrefs(); }
 $("bAddAlvo").onclick = addAlvo; $("fAlvoIn").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addAlvo(); } };
 $("bSugerir").onclick = async () => {
-  const b = $("bSugerir"); b.disabled = true; b.textContent = "Pensando…";
-  try { const r = await fn("captar", { acao: "sugerir", filtros: filtros() }); (r.clientes || []).forEach((c) => st.alvos.add(c)); renderAlvos(); salvarPrefs(); toast("Sugestões adicionadas"); }
-  catch (e) {
-    if (e.codigo === "sem_chave" || /ANTHROPIC|chave da IA/i.test(e.message)) {
-      (SEGMENTOS[$("fSeg").value] || []).forEach((c) => st.alvos.add(c)); renderAlvos(); salvarPrefs();
-      toast("IA ainda não ligada: adicionei os clientes mais comuns desse tipo de loja");
-    } else toast(e.message);
-  }
-  b.disabled = false; b.textContent = "Sugerir clientes com IA";
+  const lista = SEGMENTOS[$("fSeg").value] || [];
+  if (!lista.length) { toast("Escreva o tipo de cliente no campo ao lado e clique em Adicionar"); return; }
+  lista.forEach((c) => st.alvos.add(c)); renderAlvos(); salvarPrefs(); toast("Clientes mais comuns desse tipo de loja adicionados");
 };
 
 // ================= Status / saldo =================
@@ -530,7 +524,6 @@ function atualizarStatus() {
       const s = await fn("captar", { acao: "status", filtros: filtros() }); st.status = s;
       $("kSaldo").textContent = s.saldo.toLocaleString("pt-BR");
       $("memInfo").textContent = s.banco ? `${s.banco.toLocaleString("pt-BR")} empresas desse ramo já conhecidas na região` : "";
-      if (!s.ia) setStatus("warn", "A pesquisa com IA está temporariamente indisponível. A captação usa só a memória do Radar.");
     } catch (e) { if (e.codigo === "bloqueado" || e.codigo === "vencido") { toast(e.message); sair(); } }
   }, 400);
 }
@@ -549,7 +542,9 @@ function montarConsultas(f) {
   const GUIAS = ["telelistas.net", "apontador.com.br", "guiamais.com.br", "solutudo.com.br", "econodata.com.br"];
   const base = [], guias = [], extra = [];
   let g = 0;
-  for (const c of f.cidades) for (const a of f.alvos.slice(0, 5)) {
+  // "Empreiteiros e pedreiros" vira duas buscas mais simples (buscadores acham mais assim)
+  const termos = [...new Set(f.alvos.flatMap((x) => x.split(/\s+e\s+|,|\//i).map((t) => t.trim()).filter((t) => t.length > 2)))].slice(0, 6);
+  for (const c of f.cidades) for (const a of termos) {
     base.push({ q: `${a} ${c} ${f.uf} telefone`, cidade: c, alvo: a });
     guias.push({ q: `${a} ${c} site:${GUIAS[g++ % GUIAS.length]}`, cidade: c, alvo: a });
     base.push({ q: `${a} em ${c} guia de empresas`, cidade: c, alvo: a });
@@ -582,7 +577,7 @@ async function captar() {
     log("Consultando a memória do Radar…");
     const b = await fn("captar", { acao: "banco", filtros: f });
     const n = receber(b.novos); funil.mem = n; renderFunil(5);
-    log(n ? `✓ ${n} empresas entregues na hora pela memória (sem gastar IA)` : "Nenhuma empresa nova na memória para esses filtros", n ? "g" : "");
+    log(n ? `✓ ${n} empresas entregues na hora pela memória (sem precisar pesquisar)` : "Nenhuma empresa nova na memória para esses filtros", n ? "g" : "");
     if (b.codigo === "limite") limite = true;
   } catch (e) { log("Memória indisponível: " + e.message, "w"); if (e.codigo === "limite") limite = true; }
 
@@ -597,9 +592,9 @@ async function captar() {
         const r = await fn("captar", { acao: "buscar", q: c.q, cidade: c.cidade, demanda: !!c.demanda, alvo: c.alvo, abrir, motores: i % 2 ? ["brave", "bing", "ddg"] : ["bing", "brave", "ddg"], filtros: f });
         funil.bus++; feitas++;
         const s = r.stats || {};
-        funil.ia += s.ia || 0;
+        funil.ia += s.encontradas || 0;
         const n = receber(r.novos);
-        log(`  ${s.encontradas || 0} empresas com telefone · ${s.memoria || 0} já conhecidas · ${s.ia || 0} conferidas pela IA ·${s.regra ? ` ${s.regra} separadas por regras ·` : ""} ${n} novas para você${s.cache ? " · busca reaproveitada" : ""}`, n ? "g" : "");
+        log(`  ${s.encontradas || 0} empresas com telefone · ${s.memoria || 0} já conhecidas · ${s.aprovadas || 0} aprovadas · ${s.descartadas || 0} descartadas (concorrentes, fora do DDD ou sem nome) · ${n} novas para você${s.cache ? " · busca reaproveitada" : ""}`, n ? "g" : "");
         if (r.aviso && !avisou) { avisou = true; log(r.aviso, "w"); }
         if (r.codigo === "limite") { limite = true; }
         falhas = 0;
@@ -721,7 +716,7 @@ async function carregarAdmin() {
       const venc = c.validade && c.validade < hoje;
       const sit = c.papel === "admin" ? '<span class="badge ex">administrador</span>' : !c.ativo ? '<span class="badge bad">bloqueado</span>' : venc ? '<span class="badge warn">vencido</span>' : '<span class="badge ok">ativo</span>';
       return `<tr><td><div class="name">${esc(c.nome || "")}</div><div class="cat">${esc(c.email || "")}${c.empresa ? " · " + esc(c.empresa) : ""}</div></td>
-        <td class="mono">${c.uso.lead} leads<div class="cat">${c.uso.busca} buscas · ${c.uso.ia} análises IA</div></td>
+        <td class="mono">${c.uso.lead} leads<div class="cat">${c.uso.busca} buscas</div></td>
         <td class="mono">${(c.limite_mes || 0).toLocaleString("pt-BR")}</td>
         <td class="mono">${c.validade ? new Date(c.validade + "T12:00").toLocaleDateString("pt-BR") : "sem prazo"}</td>
         <td>${sit}</td>
